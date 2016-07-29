@@ -9,7 +9,7 @@
 #ifdef __linux__
   #define VK_USE_PLATFORM_XCB_KHR
   #include <X11/Xlib-xcb.h>
-#elif
+#elif _WIN32
   #define VK_USE_PLATFORM_WIN32_KHR
   #define WIN32_LEAN_AND_MEAN
   #include <windows.h>

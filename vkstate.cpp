@@ -80,7 +80,7 @@ VkResult VkState::create_device(void)
     si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     si.pNext = nullptr;
     si.flags = 0;
-    si.hInstance = GetModuleHandle(NULL);
+    si.hinstance = GetModuleHandle(NULL);
     si.hwnd = info.info.win.window;
     result = vkCreateWin32SurfaceKHR(this->instance, &si, nullptr,
       &this->swapchain.surface);
