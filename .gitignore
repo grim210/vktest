@@ -1,0 +1,8 @@
+# Only keep platform specific Makefiles
+Makefile
+vktest
+vktest.exe
+*o
+*swp
+*tmp
+*~

@@ -1,0 +1,32 @@
+TARGET=vktest.exe
+VK_ROOT=/c/VulkanSDK/1.0.21.0
+VK_INCLUDE=$(VK_ROOT)/Include/
+VK_BIN=$(VK_ROOT)/Bin32/
+CXX=g++
+CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VK_INCLUDE) -DVKATTEMPT_DEBUG
+LD=g++
+LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VK_BIN)
+RM=rm -rf
+OBJS=	main.o \
+	vkstate.o \
+	vkstate_debug.o
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+main.o: main.cpp
+	$(CXX) $(CXXFLAGS) main.cpp -o main.o
+
+vkstate.o: vkstate.cpp vkstate.h
+	$(CXX) $(CXXFLAGS) vkstate.cpp -o vkstate.o
+
+vkstate_debug.o: vkstate_debug.cpp vkstate.h
+	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
+
+clean:
+	$(RM) $(OBJS)
+
+distclean:
+	$(RM) $(OBJS) $(TARGET)

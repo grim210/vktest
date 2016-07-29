@@ -1,0 +1,29 @@
+TARGET=vktest
+CXX=g++
+CXXFLAGS=-c -std=c++11 -Wall -Werror -DVKTEST_DEBUG
+LD=g++
+LDFLAGS=-lvulkan -lSDL2 -lX11-xcb
+RM=rm -rf
+OBJS=	main.o \
+	vkstate.o \
+	vkstate_debug.o
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+main.o: main.cpp
+	$(CXX) $(CXXFLAGS) main.cpp -o main.o
+
+vkstate.o: vkstate.cpp vkstate.h
+	$(CXX) $(CXXFLAGS) vkstate.cpp -o vkstate.o
+
+vkstate_debug.o: vkstate_debug.cpp vkstate.h
+	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
+
+clean:
+	$(RM) $(OBJS)
+
+distclean:
+	$(RM) $(OBJS) $(TARGET)
