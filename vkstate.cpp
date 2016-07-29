@@ -27,6 +27,8 @@ VkState* VkState::Init(SDL_Window* win)
 
 void VkState::Release(VkState* state)
 {
+    vkDestroySurfaceKHR(state->instance, state->swapchain.surface, NULL);
+    vkDestroyDevice(state->device, NULL);
     vkDestroyInstance(state->instance, NULL);
     delete(state);
 }

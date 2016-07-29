@@ -3,7 +3,7 @@ VK_ROOT=/c/VulkanSDK/1.0.21.0
 VK_INCLUDE=$(VK_ROOT)/Include/
 VK_BIN=$(VK_ROOT)/Bin32/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VK_INCLUDE) -DVKATTEMPT_DEBUG
+CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VK_INCLUDE) -DVKTEST_DEBUG
 LD=g++
 LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VK_BIN)
 RM=rm -rf
