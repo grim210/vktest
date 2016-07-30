@@ -26,28 +26,48 @@ public:
     static void Release(VkState* state);
 private:
     SDL_Window* window;
+    int width, height;
 
     VkInstance instance;
     VkDevice device;
 
-    /*
-     * This is a very important variable.  It's used to create queues for
-     * the logical device created by the instance.
-     */
-    uint32_t queue_idx;
-
     struct Swapchain {
+        VkExtent2D resolution;
+        VkFormat format;
+        VkColorSpaceKHR colorspace;
+        VkPresentModeKHR mode;
         VkSurfaceKHR surface;
+        VkSwapchainKHR chain;
     } swapchain;
 
+    /*
+    * The VkPhysicalDevice, after you create your VkDevice, is pretty much
+    * useless to my knowledge.  That may change as I learn more about the spec.
+    */
     struct PhysicalDevice {
+        uint32_t qidx;
         VkPhysicalDevice device;
+        VkPhysicalDeviceFeatures features;
         VkPhysicalDeviceProperties properties;
         VkPhysicalDeviceMemoryProperties memory_properties;
     } gpu;
 
+    struct Buffers {
+        VkCommandPool pool;
+        VkCommandBuffer primary;
+        VkCommandBuffer secondary;
+    } buffers;
+
+    VkResult create_buffers(void);
     VkResult create_device(void);
     VkResult create_instance(void);
+    VkResult create_swapchain(void);
+
+    /*
+    * While these are debug functions, I was trying to avoid #ifdef guards in
+    * the initialization code for clarity.  However, if you look at the
+    * function definitions, in #VKTEST_DEBUG mode, they're simply no-ops.
+    */
     VkResult init_debug(void);
     VkResult release_debug(void);
 
