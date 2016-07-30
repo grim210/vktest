@@ -85,7 +85,7 @@ void VkState::_assert(VkResult condition, std::string message)
             out << "VK_ERROR_OUT_OF_DATE_KHR";
             break;
         default:
-            out << "**UNKNOWN**";
+            out << "* UNKNOWN (" << static_cast<int>(condition) << ")";
         }
         out << "]]\n\n";
 
@@ -229,18 +229,22 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VkTestDebugReportCallback(
         out << "!! UNKNOWN !!: ";
     }
 
-    out << pMessage << std::endl;
+    out << pMessage;
 
     /* If it's an error, ensure that it's noticed via MessageBox */
     if (flags == VK_DEBUG_REPORT_ERROR_BIT_EXT) {
+        out << " | " << pLayerPrefix << std::endl;
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Vulkan Error",
           out.str().c_str(), nullptr);
+    } else {
+        out << std::endl;
     }
 
     /* Output everything to the log file. */
     std::fstream* file = state->_get_log_file();
     if (file->is_open()) {
         *file << out.str().c_str();
+        file->flush();
     }
 
     return VK_FALSE;
