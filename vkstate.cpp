@@ -37,15 +37,16 @@ VkState* VkState::Init(SDL_Window* win)
 
 void VkState::Release(VkState* state)
 {
+    vkDestroySwapchainKHR(state->device, state->swapchain.chain, nullptr);
     vkFreeCommandBuffers(state->device, state->buffers.pool, 1,
       &state->buffers.secondary);
     vkFreeCommandBuffers(state->device, state->buffers.pool, 1,
       &state->buffers.primary);
     vkDestroyCommandPool(state->device, state->buffers.pool, nullptr);
-    vkDestroyDevice(state->device, NULL);
-    vkDestroySurfaceKHR(state->instance, state->swapchain.surface, NULL);
+    vkDestroyDevice(state->device, nullptr);
+    vkDestroySurfaceKHR(state->instance, state->swapchain.surface, nullptr);
     state->release_debug();
-    vkDestroyInstance(state->instance, NULL);
+    vkDestroyInstance(state->instance, nullptr);
     delete(state);
 }
 
@@ -87,25 +88,9 @@ VkResult VkState::create_device(void)
     VkResult result = VK_SUCCESS;
 
     /*
-     * First, we must get all the physical devices that are compatible with
-     * Vulkan on the machine.  This is done by first getting the number of
-     * devices with vkEnumeratePhysicalDevices() with no VkPhysicalDevice
-     * array (notice the nullptr) to determine the count.  After you allocate
-     * enough memory, you call the same function with the VkPhysicalDevice
-     * array as the third parameter.
-     */
-    uint32_t device_count = 0;
-    std::vector<VkPhysicalDevice> physical_devices;
-    result = vkEnumeratePhysicalDevices(this->instance, &device_count, nullptr);
-
-    physical_devices.resize(device_count);
-    result = vkEnumeratePhysicalDevices(this->instance, &device_count,
-      physical_devices.data());
-
-    /*
-     * Next, we have to create a VkSurfaceKHR, which is part of the WSI
+     * First, we have to create a VkSurfaceKHR, which is part of the WSI
      * extension for Vulkan.  With a valid surface, you are able to query
-     * your physical device to determine which device queue can actually
+     * your physical devices to determine which device queue can actually
      * present to the surface that's been created from your window.
      */
 
@@ -141,7 +126,23 @@ VkResult VkState::create_device(void)
 #endif
 
     /*
-     * Next, it's necessary to cycle through all your physical devices to
+     * Next, we must get all the physical devices that are compatible with
+     * Vulkan on the machine.  This is done by first getting the number of
+     * devices with vkEnumeratePhysicalDevices() with no VkPhysicalDevice
+     * array (notice the nullptr) to determine the count.  After you allocate
+     * enough memory, you call the same function with the VkPhysicalDevice
+     * array as the third parameter.
+     */
+    uint32_t device_count = 0;
+    std::vector<VkPhysicalDevice> physical_devices;
+    result = vkEnumeratePhysicalDevices(this->instance, &device_count, nullptr);
+
+    physical_devices.resize(device_count);
+    result = vkEnumeratePhysicalDevices(this->instance, &device_count,
+      physical_devices.data());
+
+    /*
+     * Then, it's necessary to cycle through all your physical devices to
      * determine which has a queue capable of both rendering and presenting.
      * I imagine that it would be possible to come across a device that can
      * do one or the other, so I'm not considering that case.
@@ -221,17 +222,27 @@ VkResult VkState::create_device(void)
 
     const char* swap_extension[] = { "VK_KHR_swapchain" };
 
+#ifdef VKTEST_DEBUG
+    uint32_t layer_count = 1;
+    const char* dev_layers[] = { "VK_LAYER_LUNARG_standard_validation" };
+#else
+    uint32_t layer_count = 0;
+    const char* dev_layers[] = { nullptr };
+#endif
+
+    this->gpu.features.shaderClipDistance = VK_TRUE;
+
     VkDeviceCreateInfo d_create_info = {};
     d_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     d_create_info.pNext = nullptr;
     d_create_info.flags = 0;
     d_create_info.queueCreateInfoCount = 1;
     d_create_info.pQueueCreateInfos = &q_create_info;
-    d_create_info.enabledLayerCount = 0;
-    d_create_info.ppEnabledLayerNames = nullptr;
+    d_create_info.enabledLayerCount = layer_count;
+    d_create_info.ppEnabledLayerNames = dev_layers;
     d_create_info.enabledExtensionCount = 1;
     d_create_info.ppEnabledExtensionNames = swap_extension;
-    d_create_info.pEnabledFeatures = nullptr;
+    d_create_info.pEnabledFeatures = &this->gpu.features;
 
     result = vkCreateDevice(this->gpu.device, &d_create_info, NULL, 
       &this->device);
@@ -409,10 +420,7 @@ VkResult VkState::create_swapchain(void)
       &this->swapchain.chain);
     this->_assert(result, "vkCreateSwapchainKHR");
 
-    fprintf(stdout, "Minimum swapchain images requested: %u\n",
-      sci.minImageCount);
-
-    return VK_INCOMPLETE;
+    return result;
 }
 
 
