@@ -16,11 +16,12 @@ VkState* VkState::Init(SDL_Window* win)
     ret->_assert(result, "Failed to create Vulkan instance.  Do you have a "
       "compatible system with up-to-date drivers?");
 
+    result = ret->init_debug();
+    ret->_assert(result, "Failed to initialize the debug extension.");
+
     result = ret->create_device();
     ret->_assert(result, "Failed to create a rendering device.  Do you have "
       "up-to-date drivers?");
-
-    ret->_info("Successfully created Vulkan instance and device.");
 
     return ret;
 }
@@ -29,6 +30,7 @@ void VkState::Release(VkState* state)
 {
     vkDestroySurfaceKHR(state->instance, state->swapchain.surface, NULL);
     vkDestroyDevice(state->device, NULL);
+    state->release_debug();
     vkDestroyInstance(state->instance, NULL);
     delete(state);
 }
@@ -176,7 +178,7 @@ VkResult VkState::create_instance(void)
     application_info.apiVersion = VK_MAKE_VERSION(1, 0, 0);
 
     /*
-     * This code is super-nasty.  But I'm not sure of a better way to do it.
+     * This code is super nasty.  But I'm not sure of a better way to do it.
      */
 #ifdef VKTEST_DEBUG
     int layer_count = 1;
@@ -211,8 +213,4 @@ VkResult VkState::create_instance(void)
     return vkCreateInstance(&create_info, NULL, &this->instance);
 }
 
-VkResult VkState::init_debug(void)
-{
-    return VK_INCOMPLETE;
-}
 

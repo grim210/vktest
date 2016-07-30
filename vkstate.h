@@ -1,6 +1,7 @@
 #ifndef VKATTEMPT_VKSTATE_H
 #define VKATTEMPT_VKSTATE_H
 
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -45,14 +46,20 @@ private:
         VkPhysicalDeviceMemoryProperties memory_properties;
     } gpu;
 
-    VkDebugReportCallbackEXT callback;
-
     VkResult create_device(void);
     VkResult create_instance(void);
     VkResult init_debug(void);
+    VkResult release_debug(void);
 
     void _assert(VkResult condition, std::string message);
     void _info(std::string message);
+
+#ifdef VKTEST_DEBUG
+    VkDebugReportCallbackEXT callback;
+    std::fstream log;
+public:
+    std::fstream* _get_log_file(void);
+#endif
 };
 
-#endif  /* VKATTEMPT_VKSTATE_H */
+#endif  /* VKTEST_VKSTATE_H */
