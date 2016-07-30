@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
     VkState* state = nullptr;
     SDL_Init(SDL_INIT_EVERYTHING);
 
-    SDL_Window* win = SDL_CreateWindow("Vulkan Attempt",
+    SDL_Window* win = SDL_CreateWindow("Vulkan Test",
       SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
       WINDOW_WIDTH, WINDOW_HEIGHT, 0);
     if (win == NULL) {
