@@ -25,6 +25,16 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
+    bool done = false;
+    while (!done) {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_QUIT) {
+                done = true;
+            }
+        }
+    }
+
     VkState::Release(state);
 
     SDL_Quit();
