@@ -9,6 +9,7 @@ VkState* VkState::Init(SDL_Window* win)
     VkState* ret = new VkState();
     ret->window = win;
     ret->gpu.qidx = UINT32_MAX;
+    ret->first_render = true;
 
     VkResult result = VK_SUCCESS;
 
@@ -30,24 +31,157 @@ VkState* VkState::Init(SDL_Window* win)
     result = ret->create_swapchain();
     ret->_assert(result, "Unable to create Swapchain.");
 
-    ret->_info("Successfully created Vulkan instance.");
-
     return ret;
 }
 
 void VkState::Release(VkState* state)
 {
+    vkDestroySemaphore(state->device, state->semaphore, nullptr);
+    vkDestroyFence(state->device, state->swapchain.fence, nullptr);
     vkDestroySwapchainKHR(state->device, state->swapchain.chain, nullptr);
-    vkFreeCommandBuffers(state->device, state->buffers.pool, 1,
-      &state->buffers.secondary);
-    vkFreeCommandBuffers(state->device, state->buffers.pool, 1,
-      &state->buffers.primary);
-    vkDestroyCommandPool(state->device, state->buffers.pool, nullptr);
+    vkFreeCommandBuffers(state->device, state->buffpool.pool,
+      state->buffpool.buffers.size(), state->buffpool.buffers.data());
+    vkDestroyCommandPool(state->device, state->buffpool.pool, nullptr);
     vkDestroyDevice(state->device, nullptr);
     vkDestroySurfaceKHR(state->instance, state->swapchain.surface, nullptr);
     state->release_debug();
     vkDestroyInstance(state->instance, nullptr);
     delete(state);
+}
+
+void VkState::Render(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    uint32_t count = 0;
+    std::vector<VkImage> images;
+    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
+      &count, nullptr);
+    this->_assert(result, "vkGetSwapchainImagesKHR");
+
+    images.resize(count);
+    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
+      &count, images.data());
+    this->_assert(result, "vkGetSwapchainImagesKHR");
+
+    uint32_t idx = 0;
+    result = vkAcquireNextImageKHR(this->device, this->swapchain.chain,
+      1000000000, this->semaphore, nullptr, &idx);
+    this->_assert(result, "vkAcquireNextImageKHR");
+
+    /*
+    * only wait for the fence after the first render..  If it isn't the first
+    * render, ensure that flag is toggled after we've waited for the
+    * swapchain's fence to be released.
+    */
+    if (!this->first_render) {
+        result = vkWaitForFences(this->device, 1, &this->swapchain.fence,
+          VK_TRUE, 1000000000);
+        this->_assert(result, "vkWaitForFences");
+    }
+    this->first_render = false;
+
+    uint32_t bidx = 0;  // buffer index
+    vkResetCommandBuffer(this->buffpool.buffers[bidx], 0);
+
+    VkCommandBufferBeginInfo buffer_begin_info = {};
+    buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    result = vkBeginCommandBuffer(this->buffpool.buffers[bidx],
+      &buffer_begin_info);
+    this->_assert(result, "vkBeginCommandBuffer");
+
+    VkImageMemoryBarrier fimb = {};
+    fimb.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    fimb.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    fimb.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    fimb.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    fimb.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    fimb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    fimb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    fimb.image = images[idx];
+    fimb.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    fimb.subresourceRange.baseMipLevel = 0;
+    fimb.subresourceRange.levelCount = 1;
+    fimb.subresourceRange.baseArrayLayer = 0;
+    fimb.subresourceRange.layerCount = 1;
+
+    vkCmdPipelineBarrier(this->buffpool.buffers[bidx],
+      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+      0, 0, NULL, 0, NULL, 1, &fimb);
+
+    VkImageSubresourceRange clear_subresource_range = {};
+    clear_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    clear_subresource_range.baseMipLevel = 0;
+    clear_subresource_range.levelCount = 1;
+    clear_subresource_range.baseArrayLayer = 0;
+    clear_subresource_range.layerCount = 1;
+
+    VkClearColorValue clear_color = { 0.2f, 0.2f, 0.2f, 1.0f };
+
+    vkCmdClearColorImage(this->buffpool.buffers[bidx], images[idx],
+      VK_IMAGE_LAYOUT_GENERAL, &clear_color, 1, &clear_subresource_range);
+
+    VkImageMemoryBarrier limb = {};
+    limb.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    limb.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    limb.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    limb.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    limb.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    limb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    limb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    limb.image = images[idx];
+    limb.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    limb.subresourceRange.baseMipLevel = 0;
+    limb.subresourceRange.levelCount = 1;
+    limb.subresourceRange.baseArrayLayer = 0;
+    limb.subresourceRange.layerCount = 1;
+
+    vkCmdPipelineBarrier(this->buffpool.buffers[bidx],
+      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      0, 0, nullptr, 0, nullptr, 1, &limb);
+
+    vkEndCommandBuffer(this->buffpool.buffers[bidx]);
+
+    result = vkResetFences(this->device, 1, &this->swapchain.fence);
+    this->_assert(result, "vkResetFences");
+
+    VkSemaphoreCreateInfo psemi = {};
+    psemi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkSemaphore psem;
+    result = vkCreateSemaphore(this->device, &psemi, nullptr, &psem);
+    this->_assert(result, "vkCreateSemaphore: psem");
+
+    VkPipelineStageFlags wait_sem_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &this->semaphore;
+    submit_info.pWaitDstStageMask = &wait_sem_stages;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &this->buffpool.buffers[0];
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &psem;
+    vkQueueSubmit(this->queues[0], 1, &submit_info, this->swapchain.fence);
+
+    VkPresentInfoKHR pi = {};
+    pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    pi.waitSemaphoreCount = 1;
+    pi.pWaitSemaphores = &psem;
+    pi.swapchainCount = 1;
+    pi.pSwapchains = &this->swapchain.chain;
+    pi.pImageIndices = &idx;    // result of vkAcquareNextImageKHR
+
+    VkQueue present_queue = this->queues[0];
+    result = vkQueuePresentKHR(present_queue, &pi);
+    this->_assert(result, "vkQueuePresentKHR");
+
+    result = vkWaitForFences(this->device, 1, &this->swapchain.fence,
+      VK_TRUE, 1000000000);
+    vkDestroySemaphore(this->device, psem, nullptr);
 }
 
 VkResult VkState::create_buffers(void)
@@ -61,24 +195,25 @@ VkResult VkState::create_buffers(void)
     cpci.queueFamilyIndex = this->gpu.qidx;
 
     result = vkCreateCommandPool(this->device, &cpci, nullptr,
-      &this->buffers.pool);
+      &this->buffpool.pool);
     this->_assert(result, "vkCreateCommandPool");
 
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbai.pNext = nullptr;
-    cbai.commandPool = this->buffers.pool;
+    cbai.commandPool = this->buffpool.pool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cbai.commandBufferCount = 1;
+    cbai.commandBufferCount = this->gpu.queue_properties.queueCount;
 
+    this->buffpool.buffers.resize(this->gpu.queue_properties.queueCount);
     result = vkAllocateCommandBuffers(this->device, &cbai,
-      &this->buffers.primary);
-    this->_assert(result, "vkAllocateCommandBuffers primary");
+      this->buffpool.buffers.data());
+    this->_assert(result, "vkAllocateCommandBuffers");
 
-    cbai.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
-    result = vkAllocateCommandBuffers(this->device, &cbai,
-      &this->buffers.secondary);
-    this->_assert(result, "vkAllocateCommandBuffers secondary");
+    VkSemaphoreCreateInfo sci = {};
+    sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    result = vkCreateSemaphore(this->device, &sci, nullptr, &this->semaphore);
+    this->_assert(result, "vkCreateSemaphore");
 
     return VK_SUCCESS;
 }
@@ -181,6 +316,7 @@ VkResult VkState::create_device(void)
                 if (support == VK_TRUE) {
                     this->gpu.device = physical_devices[i];
                     this->gpu.qidx = j;
+                    this->gpu.queue_properties = target_queue;
                     break;
                 }
             }
@@ -207,18 +343,32 @@ VkResult VkState::create_device(void)
     * In this section of code, we actually create the logical VkDevice that
     * will be used for rendering and presenting.  It is worth noting that
     * all the queue business above is necessary before we can create our
-    * device.  When we create our device, we also create a queue.  Notice
-    * in the VkDeviceQueueCreateInfo structure below, I'm only asking for
-    * a single queue, however.
+    * device.  When we create our device, we also create a queue.
+    *
+    * The first block of code we set our queue priorities.  I'm taking the
+    * maximum number of queues that the device supports and assigning them
+    * a priority in this for loop.  The queues are sorted by highest to
+    * lowest priority on the device.
+    *
+    * The next block, I'm simply putting that information in the QueueCreate
+    * structure.  Followed by some messy #ifdef guards for debug mode layers.
+    * Then the actual device creation code.  And upon successful completion
+    * you have a device capable of sending draw commands to...eventually.
     */
-    float queue_priority[] = { 1.0f };  // 0.0 to 1.0; low to high priority
+    std::vector<float> queue_priorities;
+    queue_priorities.resize(gpu.queue_properties.queueCount);
+    for (uint32_t i = 1; i <= queue_priorities.size(); i++) {
+        queue_priorities[i-1] = 1.0f / i;
+    }
+
+
     VkDeviceQueueCreateInfo q_create_info = {};
     q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     q_create_info.pNext = nullptr;
     q_create_info.flags = 0;
     q_create_info.queueFamilyIndex = this->gpu.qidx;
-    q_create_info.queueCount = 1;
-    q_create_info.pQueuePriorities = queue_priority;
+    q_create_info.queueCount = gpu.queue_properties.queueCount;
+    q_create_info.pQueuePriorities = queue_priorities.data();
 
     const char* swap_extension[] = { "VK_KHR_swapchain" };
 
@@ -246,6 +396,23 @@ VkResult VkState::create_device(void)
 
     result = vkCreateDevice(this->gpu.device, &d_create_info, NULL, 
       &this->device);
+
+    /*
+    * Once we've created the logical VkDevice that will be doing our work,
+    * we need to grab the queues.  A VkQueue is how work is actually submitted
+    * to our device.  I can think of no better place to grab them then as
+    * the device (and thus the actual queues) are created.
+    *
+    * It's important to note that you don't _create_ queues, you merely take
+    * a "pointer" to them from the device.  So when the device is destroyed
+    * (or lost), your queues that you retrieve are destroyed along with it.
+    * As a result, you will see no vkDestroyQueue or vkReleaseQueue call in
+    * the VkState::Release() method.
+    */
+    this->queues.resize(this->gpu.queue_properties.queueCount);
+    for (uint32_t i = 0; i < this->queues.size(); i++) {
+        vkGetDeviceQueue(this->device, this->gpu.qidx, i, &this->queues[i]);
+    }
 
     return result;
 }
@@ -414,11 +581,21 @@ VkResult VkState::create_swapchain(void)
     sci.clipped = VK_TRUE;
     sci.oldSwapchain = VK_NULL_HANDLE;
 
-    fprintf(stderr, "Here?\n");
-
     result = vkCreateSwapchainKHR(this->device, &sci, NULL,
       &this->swapchain.chain);
     this->_assert(result, "vkCreateSwapchainKHR");
+
+    /*
+    * Anything in vulkan has a lot of synchronization involved.  The swapchain
+    * itself is going to have a fence associated with it, so I will create
+    * that here instead of in some other arbitrary place.
+    */
+    VkFenceCreateInfo fci = {};
+    fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+    result = vkCreateFence(this->device, &fci, nullptr,
+      &this->swapchain.fence);
+    this->_assert(result, "vkCreateFence");
 
     return result;
 }

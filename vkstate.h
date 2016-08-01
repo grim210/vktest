@@ -24,21 +24,29 @@ class VkState {
 public:
     static VkState* Init(SDL_Window* win);
     static void Release(VkState* state);
+
+    void Render(void);
 private:
     SDL_Window* window;
     int width, height;
+    bool first_render;
 
     VkInstance instance;
     VkDevice device;
 
+    std::vector<VkQueue> queues;
+
     struct Swapchain {
         VkExtent2D resolution;
+        VkFence fence;
         VkFormat format;
         VkColorSpaceKHR colorspace;
         VkPresentModeKHR mode;
         VkSurfaceKHR surface;
         VkSwapchainKHR chain;
     } swapchain;
+
+    VkSemaphore semaphore;
 
     /*
     * The VkPhysicalDevice, after you create your VkDevice, is pretty much
@@ -50,13 +58,13 @@ private:
         VkPhysicalDeviceFeatures features;
         VkPhysicalDeviceProperties properties;
         VkPhysicalDeviceMemoryProperties memory_properties;
+        VkQueueFamilyProperties queue_properties;
     } gpu;
 
-    struct Buffers {
+    struct BufferPool {
         VkCommandPool pool;
-        VkCommandBuffer primary;
-        VkCommandBuffer secondary;
-    } buffers;
+        std::vector<VkCommandBuffer> buffers;
+    } buffpool;
 
     VkResult create_buffers(void);
     VkResult create_device(void);
