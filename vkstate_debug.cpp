@@ -1,5 +1,7 @@
 #include "vkstate.h"
 
+#define VKTEST_DEBUG_BREAK_CHAR_COUNT       (60)
+
 #ifdef VKTEST_DEBUG
 static PFN_vkCreateDebugReportCallbackEXT
   pfnCreateDebugReportCallback = nullptr;
@@ -91,7 +93,7 @@ void VkState::_assert(VkResult condition, std::string message)
 
         /* 
          * This loop attempts to wrap the message if the character count is
-         * greater than 80 characters wide.  However, if you're in the middle
+         * greater than 'x' characters wide.  However, if you're in the middle
          * of a word, it'll wait until the next space is found. Seems to work.
          *
          * UTF-8 Technical debt?
@@ -99,7 +101,7 @@ void VkState::_assert(VkResult condition, std::string message)
         int count = 0;
         for (size_t i = 0; i < message.length(); i++) {
             count++;
-            if (count >= 80 && message[i] == ' ') {
+            if (count >= VKTEST_DEBUG_BREAK_CHAR_COUNT && message[i] == ' ') {
                 out << "\n";
                 count = 0;
                 continue;
@@ -121,7 +123,7 @@ void VkState::_info(std::string message)
     int count = 0;
     for (size_t i = 0; i < message.length(); i++) {
         count++;
-        if (count >= 80 && message[i] == ' ') {
+        if (count >= VKTEST_DEBUG_BREAK_CHAR_COUNT && message[i] == ' ') {
             out << "\n";
             count = 0;
             continue;
