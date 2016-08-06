@@ -66,7 +66,7 @@ void VkState::Render(void)
 
     uint32_t idx = 0;
     result = vkAcquireNextImageKHR(this->device, this->swapchain.chain,
-      1000000000, this->semaphore, nullptr, &idx);
+      1000000000, this->semaphore, VK_NULL_HANDLE, &idx);
     this->_assert(result, "vkAcquireNextImageKHR");
 
     /*
