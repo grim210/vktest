@@ -40,13 +40,16 @@ VkState* VkState::Init(SDL_Window* win)
     result = ret->create_buffers();
     ret->_assert(result, "Unable to create command buffers.");
 
-    ret->_info("Finished initializing!  Success!!");
-
     return ret;
 }
 
 void VkState::Release(VkState* state)
 {
+    vkDeviceWaitIdle(state->device);
+
+    vkResetCommandPool(state->device, state->cmdpool,
+      VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+
     for (uint32_t i = 0; i < state->fbuffers.size(); i++) {
         vkDestroyFramebuffer(state->device, state->fbuffers[i], nullptr);
     }
