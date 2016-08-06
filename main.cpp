@@ -33,9 +33,6 @@ int main(int argc, char* argv[])
                 done = true;
             }
         }
-
-        state->Render();
-
     }
 
     VkState::Release(state);

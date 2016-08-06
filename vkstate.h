@@ -29,7 +29,6 @@ public:
 private:
     SDL_Window* window;
     int width, height;
-    bool first_render;
 
     VkInstance instance;
     VkDevice device;
@@ -37,16 +36,16 @@ private:
     std::vector<VkQueue> queues;
 
     struct Swapchain {
-        VkExtent2D resolution;
+        VkExtent2D extent;
         VkFence fence;
         VkFormat format;
         VkColorSpaceKHR colorspace;
         VkPresentModeKHR mode;
         VkSurfaceKHR surface;
         VkSwapchainKHR chain;
+        std::vector<VkImage> images;
+        std::vector<VkImageView> views;
     } swapchain;
-
-    VkSemaphore semaphore;
 
     /*
     * The VkPhysicalDevice, after you create your VkDevice, is pretty much
@@ -60,6 +59,10 @@ private:
         VkPhysicalDeviceMemoryProperties memory_properties;
         VkQueueFamilyProperties queue_properties;
     } gpu;
+
+    struct GraphicsPipline {
+        uint32_t stub;
+    } pipeline;
 
     VkCommandPool cmdpool;
     std::vector<VkCommandBuffer> cbuffers;

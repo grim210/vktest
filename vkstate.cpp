@@ -9,7 +9,6 @@ VkState* VkState::Init(SDL_Window* win)
     VkState* ret = new VkState();
     ret->window = win;
     ret->gpu.qidx = UINT32_MAX;
-    ret->first_render = true;
 
     VkResult result = VK_SUCCESS;
 
@@ -36,8 +35,10 @@ VkState* VkState::Init(SDL_Window* win)
 
 void VkState::Release(VkState* state)
 {
-    vkDestroySemaphore(state->device, state->semaphore, nullptr);
-    vkDestroyFence(state->device, state->swapchain.fence, nullptr);
+    for (uint32_t i = 0; i < state->swapchain.views.size(); i++) {
+        vkDestroyImageView(state->device, state->swapchain.views[i], nullptr);
+    }
+
     vkDestroySwapchainKHR(state->device, state->swapchain.chain, nullptr);
     vkFreeCommandBuffers(state->device, state->cmdpool,
       state->cbuffers.size(), state->cbuffers.data());
@@ -47,141 +48,6 @@ void VkState::Release(VkState* state)
     state->release_debug();
     vkDestroyInstance(state->instance, nullptr);
     delete(state);
-}
-
-void VkState::Render(void)
-{
-    VkResult result = VK_SUCCESS;
-
-    uint32_t count = 0;
-    std::vector<VkImage> images;
-    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
-      &count, nullptr);
-    this->_assert(result, "vkGetSwapchainImagesKHR");
-
-    images.resize(count);
-    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
-      &count, images.data());
-    this->_assert(result, "vkGetSwapchainImagesKHR");
-
-    uint32_t idx = 0;
-    result = vkAcquireNextImageKHR(this->device, this->swapchain.chain,
-      1000000000, this->semaphore, VK_NULL_HANDLE, &idx);
-    this->_assert(result, "vkAcquireNextImageKHR");
-
-    /*
-    * only wait for the fence after the first render..  If it isn't the first
-    * render, ensure that flag is toggled after we've waited for the
-    * swapchain's fence to be released.
-    */
-    if (!this->first_render) {
-        result = vkWaitForFences(this->device, 1, &this->swapchain.fence,
-          VK_TRUE, 1000000000);
-        this->_assert(result, "vkWaitForFences");
-    }
-    this->first_render = false;
-
-    uint32_t bidx = 0;  // buffer index
-    vkResetCommandBuffer(this->cbuffers[bidx], 0);
-
-    VkCommandBufferBeginInfo buffer_begin_info = {};
-    buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    result = vkBeginCommandBuffer(this->cbuffers[bidx],
-      &buffer_begin_info);
-    this->_assert(result, "vkBeginCommandBuffer");
-
-    VkImageMemoryBarrier fimb = {};
-    fimb.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    fimb.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    fimb.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-    fimb.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    fimb.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    fimb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    fimb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    fimb.image = images[idx];
-    fimb.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    fimb.subresourceRange.baseMipLevel = 0;
-    fimb.subresourceRange.levelCount = 1;
-    fimb.subresourceRange.baseArrayLayer = 0;
-    fimb.subresourceRange.layerCount = 1;
-
-    vkCmdPipelineBarrier(this->cbuffers[bidx],
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-      0, 0, NULL, 0, NULL, 1, &fimb);
-
-    VkImageSubresourceRange clear_subresource_range = {};
-    clear_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clear_subresource_range.baseMipLevel = 0;
-    clear_subresource_range.levelCount = 1;
-    clear_subresource_range.baseArrayLayer = 0;
-    clear_subresource_range.layerCount = 1;
-
-    VkClearColorValue clear_color = { 0.2f, 0.2f, 0.2f, 1.0f };
-
-    vkCmdClearColorImage(this->cbuffers[bidx], images[idx],
-      VK_IMAGE_LAYOUT_GENERAL, &clear_color, 1, &clear_subresource_range);
-
-    VkImageMemoryBarrier limb = {};
-    limb.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    limb.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-    limb.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    limb.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-    limb.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    limb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    limb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    limb.image = images[idx];
-    limb.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    limb.subresourceRange.baseMipLevel = 0;
-    limb.subresourceRange.levelCount = 1;
-    limb.subresourceRange.baseArrayLayer = 0;
-    limb.subresourceRange.layerCount = 1;
-
-    vkCmdPipelineBarrier(this->cbuffers[bidx],
-      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      0, 0, nullptr, 0, nullptr, 1, &limb);
-
-    vkEndCommandBuffer(this->cbuffers[bidx]);
-
-    result = vkResetFences(this->device, 1, &this->swapchain.fence);
-    this->_assert(result, "vkResetFences");
-
-    VkSemaphoreCreateInfo psemi = {};
-    psemi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkSemaphore psem;
-    result = vkCreateSemaphore(this->device, &psemi, nullptr, &psem);
-    this->_assert(result, "vkCreateSemaphore: psem");
-
-    VkPipelineStageFlags wait_sem_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &this->semaphore;
-    submit_info.pWaitDstStageMask = &wait_sem_stages;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &this->cbuffers[0];
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &psem;
-    vkQueueSubmit(this->queues[0], 1, &submit_info, this->swapchain.fence);
-
-    VkPresentInfoKHR pi = {};
-    pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    pi.waitSemaphoreCount = 1;
-    pi.pWaitSemaphores = &psem;
-    pi.swapchainCount = 1;
-    pi.pSwapchains = &this->swapchain.chain;
-    pi.pImageIndices = &idx;    // result of vkAcquareNextImageKHR
-
-    VkQueue present_queue = this->queues[0];
-    result = vkQueuePresentKHR(present_queue, &pi);
-    this->_assert(result, "vkQueuePresentKHR");
-
-    result = vkWaitForFences(this->device, 1, &this->swapchain.fence,
-      VK_TRUE, 1000000000);
-    vkDestroySemaphore(this->device, psem, nullptr);
 }
 
 VkResult VkState::create_buffers(void)
@@ -209,11 +75,6 @@ VkResult VkState::create_buffers(void)
     result = vkAllocateCommandBuffers(this->device, &cbai,
       this->cbuffers.data());
     this->_assert(result, "vkAllocateCommandBuffers");
-
-    VkSemaphoreCreateInfo sci = {};
-    sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    result = vkCreateSemaphore(this->device, &sci, nullptr, &this->semaphore);
-    this->_assert(result, "vkCreateSemaphore");
 
     return VK_SUCCESS;
 }
@@ -523,11 +384,11 @@ VkResult VkState::create_swapchain(void)
 
     /* Compare that to the surface capabilities structure. */
     if (sc.currentExtent.width == UINT32_MAX) {
-        this->swapchain.resolution.width = static_cast<uint32_t>(this->width);
-        this->swapchain.resolution.height = static_cast<uint32_t>(this->height);
+        this->swapchain.extent.width = static_cast<uint32_t>(this->width);
+        this->swapchain.extent.height = static_cast<uint32_t>(this->height);
     } else {
-        this->swapchain.resolution.width = sc.currentExtent.width;
-        this->swapchain.resolution.height = sc.currentExtent.height;
+        this->swapchain.extent.width = sc.currentExtent.width;
+        this->swapchain.extent.height = sc.currentExtent.height;
     }
 
     VkSurfaceTransformFlagBitsKHR pre_transform = sc.currentTransform;
@@ -560,7 +421,7 @@ VkResult VkState::create_swapchain(void)
     sci.minImageCount = image_count;        // should I _require_ two?
     sci.imageFormat = this->swapchain.format;
     sci.imageColorSpace = this->swapchain.colorspace;
-    sci.imageExtent = this->swapchain.resolution;
+    sci.imageExtent = this->swapchain.extent;
     sci.imageArrayLayers = 1;   // 1, since we're not doing stereoscopic 3D :|
     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -576,17 +437,37 @@ VkResult VkState::create_swapchain(void)
       &this->swapchain.chain);
     this->_assert(result, "vkCreateSwapchainKHR");
 
-    /*
-    * Anything in vulkan has a lot of synchronization involved.  The swapchain
-    * itself is going to have a fence associated with it, so I will create
-    * that here instead of in some other arbitrary place.
-    */
-    VkFenceCreateInfo fci = {};
-    fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    count = 0;
+    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
+      &count, nullptr);
+    this->_assert(result, "vkGetSwapchainImagesKHR");
 
-    result = vkCreateFence(this->device, &fci, nullptr,
-      &this->swapchain.fence);
-    this->_assert(result, "vkCreateFence");
+    this->swapchain.images.resize(count);
+    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
+      &count, this->swapchain.images.data());
+    this->_assert(result, "vkGetSwapchainImagesKHR");
+
+    this->swapchain.views.resize(count);
+    for (uint32_t i = 0; i < count; i++) {
+        VkImageViewCreateInfo ivci = {};
+        ivci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        ivci.image = this->swapchain.images[i];
+        ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        ivci.format = this->swapchain.format;
+        ivci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ivci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ivci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ivci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        ivci.subresourceRange.baseMipLevel = 0;
+        ivci.subresourceRange.levelCount = 1;
+        ivci.subresourceRange.baseArrayLayer = 0;
+        ivci.subresourceRange.layerCount = 1;
+
+        result = vkCreateImageView(this->device, &ivci, nullptr,
+          &this->swapchain.views[i]);
+        this->_assert(result, "vkCreateImageView");
+    }
 
     return result;
 }
