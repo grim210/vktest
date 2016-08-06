@@ -36,9 +36,12 @@ private:
     VkInstance instance;
     VkDevice device;
 
+    std::vector<VkFramebuffer> fbuffers;
     std::vector<VkQueue> queues;
 
     struct Swapchain {
+        VkSemaphore semready;
+        VkSemaphore semfinished;
         VkExtent2D extent;
         VkFence fence;
         VkFormat format;
@@ -64,7 +67,11 @@ private:
     } gpu;
 
     struct GraphicsPipline {
-        uint32_t stub;
+        VkRenderPass renderpass;
+        VkPipeline gpipeline;
+        VkPipelineLayout layout;
+        VkShaderModule vshadermodule;
+        VkShaderModule fshadermodule;
     } pipeline;
 
     VkCommandPool cmdpool;
@@ -72,9 +79,11 @@ private:
 
     VkResult create_buffers(void);
     VkResult create_device(void);
+    VkResult create_framebuffers(void);
     VkResult create_instance(void);
-    VkResult create_swapchain(void);
     VkResult create_pipeline(void);
+    VkResult create_renderpass(void);
+    VkResult create_swapchain(void);
 
     /*
     * While these are debug functions, I was trying to avoid #ifdef guards in
