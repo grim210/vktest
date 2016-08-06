@@ -25,6 +25,9 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
+    int framecount = 0;
+    uint32_t start = SDL_GetTicks();
+
     bool done = false;
     while (!done) {
         SDL_Event ev;
@@ -35,6 +38,13 @@ int main(int argc, char* argv[])
         }
 
         state->Render();
+
+        framecount++;
+        if (SDL_GetTicks() - start >= 1000) {
+            std::cout << "FPS: " << framecount << std::endl;
+            framecount = 0;
+            start = SDL_GetTicks();
+        }
     }
 
     VkState::Release(state);
