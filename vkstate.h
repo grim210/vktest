@@ -61,10 +61,8 @@ private:
         VkQueueFamilyProperties queue_properties;
     } gpu;
 
-    struct BufferPool {
-        VkCommandPool pool;
-        std::vector<VkCommandBuffer> buffers;
-    } buffpool;
+    VkCommandPool cmdpool;
+    std::vector<VkCommandBuffer> cbuffers;
 
     VkResult create_buffers(void);
     VkResult create_device(void);

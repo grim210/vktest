@@ -39,9 +39,9 @@ void VkState::Release(VkState* state)
     vkDestroySemaphore(state->device, state->semaphore, nullptr);
     vkDestroyFence(state->device, state->swapchain.fence, nullptr);
     vkDestroySwapchainKHR(state->device, state->swapchain.chain, nullptr);
-    vkFreeCommandBuffers(state->device, state->buffpool.pool,
-      state->buffpool.buffers.size(), state->buffpool.buffers.data());
-    vkDestroyCommandPool(state->device, state->buffpool.pool, nullptr);
+    vkFreeCommandBuffers(state->device, state->cmdpool,
+      state->cbuffers.size(), state->cbuffers.data());
+    vkDestroyCommandPool(state->device, state->cmdpool, nullptr);
     vkDestroyDevice(state->device, nullptr);
     vkDestroySurfaceKHR(state->instance, state->swapchain.surface, nullptr);
     state->release_debug();
@@ -82,12 +82,12 @@ void VkState::Render(void)
     this->first_render = false;
 
     uint32_t bidx = 0;  // buffer index
-    vkResetCommandBuffer(this->buffpool.buffers[bidx], 0);
+    vkResetCommandBuffer(this->cbuffers[bidx], 0);
 
     VkCommandBufferBeginInfo buffer_begin_info = {};
     buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    result = vkBeginCommandBuffer(this->buffpool.buffers[bidx],
+    result = vkBeginCommandBuffer(this->cbuffers[bidx],
       &buffer_begin_info);
     this->_assert(result, "vkBeginCommandBuffer");
 
@@ -106,7 +106,7 @@ void VkState::Render(void)
     fimb.subresourceRange.baseArrayLayer = 0;
     fimb.subresourceRange.layerCount = 1;
 
-    vkCmdPipelineBarrier(this->buffpool.buffers[bidx],
+    vkCmdPipelineBarrier(this->cbuffers[bidx],
       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
       0, 0, NULL, 0, NULL, 1, &fimb);
@@ -120,7 +120,7 @@ void VkState::Render(void)
 
     VkClearColorValue clear_color = { 0.2f, 0.2f, 0.2f, 1.0f };
 
-    vkCmdClearColorImage(this->buffpool.buffers[bidx], images[idx],
+    vkCmdClearColorImage(this->cbuffers[bidx], images[idx],
       VK_IMAGE_LAYOUT_GENERAL, &clear_color, 1, &clear_subresource_range);
 
     VkImageMemoryBarrier limb = {};
@@ -138,12 +138,12 @@ void VkState::Render(void)
     limb.subresourceRange.baseArrayLayer = 0;
     limb.subresourceRange.layerCount = 1;
 
-    vkCmdPipelineBarrier(this->buffpool.buffers[bidx],
+    vkCmdPipelineBarrier(this->cbuffers[bidx],
       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
       0, 0, nullptr, 0, nullptr, 1, &limb);
 
-    vkEndCommandBuffer(this->buffpool.buffers[bidx]);
+    vkEndCommandBuffer(this->cbuffers[bidx]);
 
     result = vkResetFences(this->device, 1, &this->swapchain.fence);
     this->_assert(result, "vkResetFences");
@@ -162,7 +162,7 @@ void VkState::Render(void)
     submit_info.pWaitSemaphores = &this->semaphore;
     submit_info.pWaitDstStageMask = &wait_sem_stages;
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &this->buffpool.buffers[0];
+    submit_info.pCommandBuffers = &this->cbuffers[0];
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &psem;
     vkQueueSubmit(this->queues[0], 1, &submit_info, this->swapchain.fence);
@@ -195,19 +195,19 @@ VkResult VkState::create_buffers(void)
     cpci.queueFamilyIndex = this->gpu.qidx;
 
     result = vkCreateCommandPool(this->device, &cpci, nullptr,
-      &this->buffpool.pool);
+      &this->cmdpool);
     this->_assert(result, "vkCreateCommandPool");
 
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbai.pNext = nullptr;
-    cbai.commandPool = this->buffpool.pool;
+    cbai.commandPool = this->cmdpool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = this->gpu.queue_properties.queueCount;
 
-    this->buffpool.buffers.resize(this->gpu.queue_properties.queueCount);
+    this->cbuffers.resize(this->gpu.queue_properties.queueCount);
     result = vkAllocateCommandBuffers(this->device, &cbai,
-      this->buffpool.buffers.data());
+      this->cbuffers.data());
     this->_assert(result, "vkAllocateCommandBuffers");
 
     VkSemaphoreCreateInfo sci = {};
@@ -434,36 +434,27 @@ VkResult VkState::create_instance(void)
     /*
      * This code is super nasty.  But I'm not sure of a better way to do it.
      */
+    std::vector<const char*> extensions;
+    extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+#ifdef __linux
+    extensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#elif _WIN32
+    extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#endif
+
+    std::vector<const char*> layers;
 #ifdef VKTEST_DEBUG
-    int layer_count = 1;
-    int extension_count = 3;
-    const char* layers[] = { "VK_LAYER_LUNARG_standard_validation" };
-    const char* extensions[] = { "VK_KHR_surface",
-    #ifdef __linux__
-      "VK_KHR_xcb_surface",
-    #elif _WIN32
-      "VK_KHR_win32_surface",
-    #endif
-      "VK_EXT_debug_report" };
-#else   /* in 'release' mode */
-    int layer_count = 0;
-    int extension_count = 2;
-    const char* layers[] = { nullptr };
-    const char* extensions[] = { "VK_KHR_surface",
-    #ifdef __linux__
-      "VK_KHR_xcb_surface" };
-    #elif _WIN32
-      "VK_KHR_win32_surface" };
-    #endif
+    layers.push_back("VK_LAYER_LUNARG_standard_validation");
+    extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif
 
     VkInstanceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &application_info;
-    create_info.enabledLayerCount = layer_count;
-    create_info.ppEnabledLayerNames = layers;
-    create_info.enabledExtensionCount = extension_count;
-    create_info.ppEnabledExtensionNames = extensions;
+    create_info.enabledLayerCount = layers.size();
+    create_info.ppEnabledLayerNames = layers.data();
+    create_info.enabledExtensionCount = extensions.size();
+    create_info.ppEnabledExtensionNames = extensions.data();
 
     return vkCreateInstance(&create_info, NULL, &this->instance);
 }
