@@ -1,0 +1,11 @@
+Use glslangValidator to generate SPIR-V binaries from GLSL code.  Command goes
+something like this:
+
+    $ ../path/to/glslangValidator -V src.frag
+
+Will generate a binary called:
+
+    frag.spv
+
+that you will have to rename to suit your needs.  A script can be built to make
+that process easier, but I'm not there yet.
