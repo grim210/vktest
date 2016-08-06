@@ -24,8 +24,11 @@ class VkState {
 public:
     static VkState* Init(SDL_Window* win);
     static void Release(VkState* state);
-
     void Render(void);
+
+    /* These are public, but only function in the debug builds. */
+    void _assert(VkResult, std::string message);
+    void _info(std::string message);
 private:
     SDL_Window* window;
     int width, height;
@@ -71,6 +74,7 @@ private:
     VkResult create_device(void);
     VkResult create_instance(void);
     VkResult create_swapchain(void);
+    VkResult create_pipeline(void);
 
     /*
     * While these are debug functions, I was trying to avoid #ifdef guards in
@@ -79,9 +83,6 @@ private:
     */
     VkResult init_debug(void);
     VkResult release_debug(void);
-
-    void _assert(VkResult condition, std::string message);
-    void _info(std::string message);
 
 #ifdef VKTEST_DEBUG
     VkDebugReportCallbackEXT callback;
