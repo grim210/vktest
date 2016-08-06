@@ -23,7 +23,7 @@ vkstate_debug.o: vkstate_debug.cpp vkstate.h
 	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) log.txt
 
 distclean:
-	$(RM) $(OBJS) $(TARGET)
+	$(RM) $(OBJS) $(TARGET) log.txt
