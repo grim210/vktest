@@ -1,5 +1,7 @@
 #include "vkstate.h"
 
+static std::vector<char> _read_file(VkState* state, std::string path);
+
 VkState* VkState::Init(SDL_Window* win)
 {
     if (!win) {
@@ -29,6 +31,9 @@ VkState* VkState::Init(SDL_Window* win)
 
     result = ret->create_swapchain();
     ret->_assert(result, "Unable to create Swapchain.");
+
+    result = ret->create_pipeline();
+    ret->_assert(result, "Unable to create graphics pipeline.");
 
     return ret;
 }
@@ -320,6 +325,22 @@ VkResult VkState::create_instance(void)
     return vkCreateInstance(&create_info, NULL, &this->instance);
 }
 
+VkResult VkState::create_pipeline(void)
+{
+    std::vector<char> vshader = _read_file(this, "./shaders/test.vert.spv");
+    std::vector<char> fshader = _read_file(this, "./shaders/test.frag.spv");
+
+    std::stringstream out;
+
+    out << "Vertex Shader is " << vshader.size() << " bytes.  ";
+    out << "Fragment Shader is " << fshader.size() << " bytes.";
+    out << std::endl;
+
+    this->_info(out.str());
+
+    return VK_SUCCESS;
+}
+
 VkResult VkState::create_swapchain(void)
 {
     /*
@@ -472,4 +493,28 @@ VkResult VkState::create_swapchain(void)
     return result;
 }
 
+
+std::vector<char> _read_file(VkState* state, std::string path)
+{
+    std::fstream in;
+    std::vector<char> ret;
+
+    in.open(path, std::fstream::binary | std::fstream::in);
+    if (!in.is_open()) {
+        std::stringstream out;
+        out << "Unable to open file \'" << path << "\'" << std::endl;
+        state->_assert(VK_INCOMPLETE, out.str());
+        return ret;
+    }
+
+    uint32_t len = 0;
+    in.seekg(0L, in.end);
+    len = in.tellg();
+    in.seekg(0L, in.beg);
+
+    ret.resize(len);
+    in.read(ret.data(), len);
+
+    return ret;
+}
 
