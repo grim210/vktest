@@ -1,10 +1,7 @@
 TARGET=vktest
-SHADERS=\
-	/shaders/test.vert.spv \
-	/shaders/test.frag.spv
-#VKSDK=../Vulkan-LoaderAndValidationLayers
-#VKSDK_INC=-I$(VKSDK)/include/
-#VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
+VKSDK=../Vulkan-LoaderAndValidationLayers
+VKSDK_INC=-I$(VKSDK)/include/
+VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
 CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror \
 	-DVKTEST_VSYNC -DVKTEST_DEBUG $(VKSDK_INC)
@@ -15,18 +12,22 @@ OBJS=	main.o \
 	vkstate.o \
 	vkstate_debug.o
 
+# Shader compilation code
+GLSL=../Vulkan-LoaderAndValidationLayers/external/glslang/build/StandAlone/glslangValidator
+GLSLFLAGS=-V
+SHADERS=\
+	./shaders/test.vert.spv \
+	./shaders/test.frag.spv
+
 all: $(TARGET) $(SHADERS)
 
-#test:
-#	LD_LIBRARY_PATH=$(VKSDK)/dbuild/loader \
-#	VK_LAYER_PATH=$(VKSDK)/dbuild/layers \
-#	./vktest
+test:
+	LD_LIBRARY_PATH=$(VKSDK)/dbuild/loader \
+	VK_LAYER_PATH=$(VKSDK)/dbuild/layers \
+	./vktest
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
-
-$(SHADERS): ./shaders/src/test.vert ./shaders/src/test.frag
-	cd ./shaders/src/ ; ./build-unix.sh
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
@@ -37,8 +38,14 @@ vkstate.o: vkstate.cpp vkstate.h
 vkstate_debug.o: vkstate_debug.cpp vkstate.h
 	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
 
+./shaders/test.vert.spv: ./shaders/src/test.vert
+	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv
+
+./shaders/test.frag.spv: ./shaders/src/test.frag
+	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.frag -o ./shaders/test.frag.spv
+
 clean:
 	$(RM) $(OBJS) log.txt
 
 distclean:
-	$(RM) $(OBJS) $(TARGET) log.txt
+	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt
