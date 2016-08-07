@@ -1,14 +1,23 @@
 TARGET=vktest
+#VKSDK=../Vulkan-LoaderAndValidationLayers
+#VKSDK_INC=-I$(VKSDK)/include/
+#VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -DVKTEST_DEBUG
+CXXFLAGS=-c -std=c++11 -Wall -Werror \
+	-DVKTEST_VSYNC -DVKTEST_DEBUG $(VKSDK_INC)
 LD=g++
-LDFLAGS=-lvulkan -lSDL2 -lX11-xcb
+LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf
 OBJS=	main.o \
 	vkstate.o \
 	vkstate_debug.o
 
 all: $(TARGET)
+
+#test:
+#	LD_LIBRARY_PATH=$(VKSDK)/dbuild/loader \
+#	VK_LAYER_PATH=$(VKSDK)/dbuild/layers \
+#	./vktest
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
