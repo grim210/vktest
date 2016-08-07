@@ -14,7 +14,7 @@
   #include <windows.h>
 #elif __linux__
   #define VK_USE_PLATFORM_XCB_KHR
-  #include <X11/xlib-xcb.h>
+  #include <X11/Xlib-xcb.h>
 #endif
 
 #include <SDL2/SDL.h>
