@@ -123,11 +123,12 @@ void VkState::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
+    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(this->device, 1, &this->fence);
+
     uint32_t idx = 0;
     vkAcquireNextImageKHR(this->device, this->swapchain.chain, UINT64_MAX,
       this->swapchain.semready, VK_NULL_HANDLE, &idx);
-
-    vkResetFences(this->device, 1, &this->fence);
 
     VkSemaphore waitsems[] = { this->swapchain.semready };
     VkSemaphore sigsems[] = { this->swapchain.semfinished };
@@ -158,7 +159,6 @@ void VkState::Render(void)
     pi.pImageIndices = &idx;
 
     vkQueuePresentKHR(this->queues[0], &pi);
-    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, UINT64_MAX);
 }
 
 VkResult VkState::create_buffers(void)
