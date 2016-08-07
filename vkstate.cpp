@@ -752,17 +752,19 @@ VkResult VkState::create_swapchain(void)
     vkGetPhysicalDeviceSurfacePresentModesKHR(this->gpu.device,
       this->swapchain.surface, &count, present_modes.data());
 
-#ifdef VKTEST_VSYNC
     this->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
     for (uint32_t i = 0; i < present_modes.size(); i++) {
+#ifdef VKTEST_VSYNC
         if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
             this->swapchain.mode = present_modes[i];
             break;
         }
-    }
 #else
-    this->swapchain.mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            this->swapchain.mode = present_modes[i];
+        }
 #endif
+    }
 
     VkSwapchainCreateInfoKHR sci = {};
     sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
