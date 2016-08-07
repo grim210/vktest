@@ -82,8 +82,12 @@ VkState* VkState::Init(SDL_Window* win)
 
     VkFenceCreateInfo fci = {};
     fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fci.pNext = nullptr;
+    fci.flags = 0;
     result = vkCreateFence(ret->device, &fci, nullptr, &ret->fence);
     ret->_assert(result, "Unable to create fence.");
+
+    ret->firstpass = true;
 
     return ret;
 }
@@ -91,7 +95,7 @@ VkState* VkState::Init(SDL_Window* win)
 void VkState::Release(VkState* state)
 {
     vkDeviceWaitIdle(state->device);
-    vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000);
+    vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000000);
 
     state->release_render_objects();
     state->release_sync_objects();
@@ -118,7 +122,16 @@ void VkState::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
-    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, UINT64_MAX);
+    result = vkWaitForFences(this->device, 1, &this->fence,
+      VK_TRUE, 100000000);
+    if (result) {
+        if (this->firstpass) {
+            this->firstpass = false;
+        } else {
+            this->_info("Framerate is _really_ low..");
+        }
+    }
+
     vkResetFences(this->device, 1, &this->fence);
 
     uint32_t idx = 0;
