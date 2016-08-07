@@ -118,7 +118,7 @@ void VkState::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
-    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, 1000000000);
     vkResetFences(this->device, 1, &this->fence);
 
     uint32_t idx = 0;
