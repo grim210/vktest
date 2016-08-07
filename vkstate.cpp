@@ -774,6 +774,22 @@ VkResult VkState::create_swapchain(void)
 #endif
     }
 
+#ifdef VKTEST_DEBUG
+    switch (this->swapchain.mode) {
+    case VK_PRESENT_MODE_IMMEDIATE_KHR:
+        std::cerr << "Immediate Mode" << std::endl;
+        break;
+    case VK_PRESENT_MODE_FIFO_KHR:
+        std::cerr << "FIFO" << std::endl;
+        break;
+    case VK_PRESENT_MODE_MAILBOX_KHR:
+        std::cerr << "Mailbox" << std::endl;
+        break;
+    default:
+        std::cerr << "Some other mode.." << std::endl;
+    }
+#endif
+
     VkSwapchainCreateInfoKHR sci = {};
     sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     sci.pNext = VK_NULL_HANDLE;
