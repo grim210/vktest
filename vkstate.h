@@ -1,6 +1,8 @@
 #ifndef VKATTEMPT_VKSTATE_H
 #define VKATTEMPT_VKSTATE_H
 
+#include <cstring>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -19,6 +21,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 class VkState {
 public:
@@ -78,6 +81,8 @@ private:
 
     VkCommandPool cmdpool;
     std::vector<VkCommandBuffer> cbuffers;
+    VkBuffer vbuffer;
+    VkDeviceMemory vbuffermem;
 
     VkResult create_buffers(void);
     VkResult create_device(void);
@@ -86,6 +91,8 @@ private:
     VkResult create_pipeline(void);
     VkResult create_renderpass(void);
     VkResult create_swapchain(void);
+
+    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
 
     /*
     * While these are debug functions, I was trying to avoid #ifdef guards in

@@ -1,5 +1,45 @@
 #include "vkstate.h"
 
+struct Vertex {
+    glm::vec2 pos;
+    glm::vec3 color;
+
+    static VkVertexInputBindingDescription getBindDesc(void)
+    {
+        VkVertexInputBindingDescription desc = {};
+        desc.binding = 0;
+        desc.stride = sizeof(Vertex);
+        desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return desc;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> getAttrDesc(void)
+    {
+        std::array<VkVertexInputAttributeDescription, 2> descs = {};
+
+        /* must be the position attribute description. */
+        descs[0].binding = 0;
+        descs[0].location = 0;
+        descs[0].format = VK_FORMAT_R32G32_SFLOAT;
+        descs[0].offset = offsetof(Vertex, pos);
+
+        /* and the color attribute descritpion */
+        descs[1].binding = 0;
+        descs[1].location = 1;
+        descs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        descs[1].offset = offsetof(Vertex, color);
+
+        return descs;
+    }
+};
+
+const std::vector<Vertex> vertices = {
+    {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
 static std::vector<char> _read_file(VkState* state, std::string path);
 
 VkState* VkState::Init(SDL_Window* win)
@@ -60,6 +100,9 @@ void VkState::Release(VkState* state)
     for (uint32_t i = 0; i < state->fbuffers.size(); i++) {
         vkDestroyFramebuffer(state->device, state->fbuffers[i], nullptr);
     }
+
+    vkFreeMemory(state->device, state->vbuffermem, nullptr);
+    vkDestroyBuffer(state->device, state->vbuffer, nullptr);
 
     vkDestroyPipeline(state->device, state->pipeline.gpipeline, nullptr);
     vkDestroyPipelineLayout(state->device, state->pipeline.layout, nullptr);
@@ -165,28 +208,65 @@ VkResult VkState::create_buffers(void)
 {
     VkResult result = VK_SUCCESS;
 
+    /* Command pool creation */
     VkCommandPoolCreateInfo cpci = {};
     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cpci.pNext = nullptr;
     cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     cpci.queueFamilyIndex = this->gpu.qidx;
-
     result = vkCreateCommandPool(this->device, &cpci, nullptr,
       &this->cmdpool);
     this->_assert(result, "vkCreateCommandPool");
 
+    /* Vertex buffer creation */
+    VkBufferCreateInfo bci = {};
+    bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bci.flags = 0;
+    bci.size = (sizeof(vertices[0]) * vertices.size());
+    bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    result = vkCreateBuffer(this->device, &bci, nullptr, &this->vbuffer);
+    this->_assert(result, "vkCreateBuffer: vertex buffer");
+
+    /*
+    * After the buffer is created, we must allocate memory for it.  Determine
+    * the size, the required type of memory and then allocate.  After
+    * allocation it must be bound.  Then it must be mapped so that we can
+    * actually fill our buffer with vertex data.
+    */
+    VkMemoryRequirements memreq;
+    vkGetBufferMemoryRequirements(this->device, vbuffer, &memreq);
+
+    VkMemoryAllocateInfo mai = {};
+    mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    mai.allocationSize = memreq.size;
+    mai.memoryTypeIndex = this->find_memory_type(memreq.memoryTypeBits,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    result = vkAllocateMemory(this->device, &mai, nullptr, &this->vbuffermem);
+    this->_assert(result, "vkAllocateMemory: vertex buffer memory.");
+
+    vkBindBufferMemory(this->device, this->vbuffer, this->vbuffermem, 0);
+
+    /* bci.size is from when we created the original buffer...i had to look. */
+    void* data;
+    vkMapMemory(this->device, this->vbuffermem, 0, bci.size, 0, &data);
+    std::memcpy(data, vertices.data(), (size_t)bci.size);
+    vkUnmapMemory(this->device, this->vbuffermem);
+
+    /* Command buffer creation */
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbai.pNext = nullptr;
     cbai.commandPool = this->cmdpool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = this->fbuffers.size();
-
     this->cbuffers.resize(this->fbuffers.size());
     result = vkAllocateCommandBuffers(this->device, &cbai,
       this->cbuffers.data());
     this->_assert(result, "vkAllocateCommandBuffers");
 
+    /* I'm not sure what this is...will figure out. */
     for (uint32_t i = 0; i < this->cbuffers.size(); i++) {
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -207,9 +287,16 @@ VkResult VkState::create_buffers(void)
 
         vkCmdBeginRenderPass(this->cbuffers[i], &rpi,
           VK_SUBPASS_CONTENTS_INLINE);
+
         vkCmdBindPipeline(this->cbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
           this->pipeline.gpipeline);
-        vkCmdDraw(this->cbuffers[i], 3, 1, 0, 0);
+
+        VkBuffer vbuffs[] = {this->vbuffer};
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(this->cbuffers[i], 0, 1, vbuffs, offsets);
+
+        vkCmdDraw(this->cbuffers[i], vertices.size(), 1, 0, 0);
+
         vkCmdEndRenderPass(this->cbuffers[i]);
 
         result = vkEndCommandBuffer(this->cbuffers[i]);
@@ -524,13 +611,18 @@ VkResult VkState::create_pipeline(void)
     shader_stages.push_back(vssi);
     shader_stages.push_back(fssi);
 
+    /* grab the vertex data descriptions. */
+    VkVertexInputBindingDescription bdesc = Vertex::getBindDesc();
+    std::array<VkVertexInputAttributeDescription, 2> adescs =
+      Vertex::getAttrDesc();
+
     VkPipelineVertexInputStateCreateInfo vertinputinfo = {};
     vertinputinfo.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertinputinfo.vertexBindingDescriptionCount = 0;
-    vertinputinfo.pVertexBindingDescriptions = nullptr;
-    vertinputinfo.vertexAttributeDescriptionCount = 0;
-    vertinputinfo.pVertexAttributeDescriptions = nullptr;
+    vertinputinfo.vertexBindingDescriptionCount = 1;
+    vertinputinfo.pVertexBindingDescriptions = &bdesc;
+    vertinputinfo.vertexAttributeDescriptionCount = adescs.size();
+    vertinputinfo.pVertexAttributeDescriptions = adescs.data();
 
     VkPipelineInputAssemblyStateCreateInfo piasci = {};
     piasci.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -860,6 +952,23 @@ VkResult VkState::create_swapchain(void)
     return result;
 }
 
+uint32_t VkState::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
+{
+    VkPhysicalDeviceMemoryProperties props = this->gpu.memory_properties;
+    uint32_t count = props.memoryTypeCount;
+
+    for (uint32_t i = 0; i < count; i++) {
+        if ((filter & (1 << i)) && (props.memoryTypes[i].propertyFlags &
+          flags) == flags) {
+            return i;
+        }
+    }
+
+    this->_assert(VK_ERROR_INCOMPATIBLE_DRIVER,
+      "Failed to find suitable GPU memory for vertex data");
+
+    return UINT32_MAX;
+}
 
 std::vector<char> _read_file(VkState* state, std::string path)
 {
