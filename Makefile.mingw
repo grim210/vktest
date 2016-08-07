@@ -15,6 +15,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+	cd shaders/src/ ; ./build-mingw.sh
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
