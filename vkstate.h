@@ -36,6 +36,7 @@ public:
 private:
     SDL_Window* window;
     int width, height;
+    bool firstpass;
 
     VkInstance instance;
     VkDevice device;
