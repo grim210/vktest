@@ -56,6 +56,7 @@ int main(int argc, char* argv[])
         }
     }
 
+    VkWindow::Release(window);
     VkState::Release(state);
 
     SDL_Quit();
