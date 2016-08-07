@@ -94,6 +94,11 @@ private:
 
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
 
+    VkResult release_device_objects(void);
+    VkResult release_instance_objects(void);
+    VkResult release_render_objects(void);
+    VkResult release_sync_objects(void);
+
     /*
     * While these are debug functions, I was trying to avoid #ifdef guards in
     * the initialization code for clarity.  However, if you look at the

@@ -92,39 +92,12 @@ void VkState::Release(VkState* state)
 {
     vkDeviceWaitIdle(state->device);
     vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000);
-    vkDestroyFence(state->device, state->fence, nullptr);
 
-    vkResetCommandPool(state->device, state->cmdpool,
-      VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+    state->release_render_objects();
+    state->release_sync_objects();
+    state->release_device_objects();
+    state->release_instance_objects();
 
-    for (uint32_t i = 0; i < state->fbuffers.size(); i++) {
-        vkDestroyFramebuffer(state->device, state->fbuffers[i], nullptr);
-    }
-
-    vkFreeMemory(state->device, state->vbuffermem, nullptr);
-    vkDestroyBuffer(state->device, state->vbuffer, nullptr);
-
-    vkDestroyPipeline(state->device, state->pipeline.gpipeline, nullptr);
-    vkDestroyPipelineLayout(state->device, state->pipeline.layout, nullptr);
-    vkDestroyRenderPass(state->device, state->pipeline.renderpass, nullptr);
-    vkDestroyShaderModule(state->device,
-      state->pipeline.vshadermodule, nullptr);
-    vkDestroyShaderModule(state->device,
-      state->pipeline.fshadermodule, nullptr);
-    for (uint32_t i = 0; i < state->swapchain.views.size(); i++) {
-        vkDestroyImageView(state->device, state->swapchain.views[i], nullptr);
-    }
-
-    vkDestroySemaphore(state->device, state->swapchain.semready, nullptr);
-    vkDestroySemaphore(state->device, state->swapchain.semfinished, nullptr);
-    vkDestroySwapchainKHR(state->device, state->swapchain.chain, nullptr);
-    vkFreeCommandBuffers(state->device, state->cmdpool,
-      state->cbuffers.size(), state->cbuffers.data());
-    vkDestroyCommandPool(state->device, state->cmdpool, nullptr);
-    vkDestroyDevice(state->device, nullptr);
-    vkDestroySurfaceKHR(state->instance, state->swapchain.surface, nullptr);
-    state->release_debug();
-    vkDestroyInstance(state->instance, nullptr);
     delete(state);
 }
 
@@ -132,28 +105,7 @@ void VkState::RecreateSwapchain(void)
 {
     vkDeviceWaitIdle(this->device);
 
-    vkResetCommandPool(this->device, this->cmdpool,
-      VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
-
-    for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
-        vkDestroyFramebuffer(this->device, this->fbuffers[i], nullptr);
-    }
-
-    vkDestroyPipeline(this->device, this->pipeline.gpipeline, nullptr);
-    vkDestroyPipelineLayout(this->device, this->pipeline.layout, nullptr);
-    vkDestroyRenderPass(this->device, this->pipeline.renderpass, nullptr);
-    vkDestroyShaderModule(this->device,
-      this->pipeline.vshadermodule, nullptr);
-    vkDestroyShaderModule(this->device,
-      this->pipeline.fshadermodule, nullptr);
-    for (uint32_t i = 0; i < this->swapchain.views.size(); i++) {
-        vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
-    }
-
-    vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
-    vkFreeCommandBuffers(this->device, this->cmdpool,
-      this->cbuffers.size(), this->cbuffers.data());
-    vkDestroyCommandPool(this->device, this->cmdpool, nullptr);
+    this->release_render_objects();
 
     this->create_swapchain();
     this->create_renderpass();
@@ -968,6 +920,62 @@ uint32_t VkState::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
       "Failed to find suitable GPU memory for vertex data");
 
     return UINT32_MAX;
+}
+
+VkResult VkState::release_device_objects(void)
+{
+    vkDestroyDevice(this->device, nullptr);
+    vkDestroySurfaceKHR(this->instance, this->swapchain.surface, nullptr);
+
+    return VK_SUCCESS;
+}
+
+VkResult VkState::release_instance_objects(void)
+{
+    this->release_debug();
+    vkDestroyInstance(this->instance, nullptr);
+
+    return VK_SUCCESS;
+}
+
+VkResult VkState::release_render_objects(void)
+{
+    vkResetCommandPool(this->device, this->cmdpool,
+      VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+
+    for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
+        vkDestroyFramebuffer(this->device, this->fbuffers[i], nullptr);
+    }
+
+    vkFreeMemory(this->device, this->vbuffermem, nullptr);
+    vkDestroyBuffer(this->device, this->vbuffer, nullptr);
+
+    vkDestroyPipeline(this->device, this->pipeline.gpipeline, nullptr);
+    vkDestroyPipelineLayout(this->device, this->pipeline.layout, nullptr);
+    vkDestroyRenderPass(this->device, this->pipeline.renderpass, nullptr);
+    vkDestroyShaderModule(this->device,
+      this->pipeline.vshadermodule, nullptr);
+    vkDestroyShaderModule(this->device,
+      this->pipeline.fshadermodule, nullptr);
+    for (uint32_t i = 0; i < this->swapchain.views.size(); i++) {
+        vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
+    }
+
+    vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
+    vkFreeCommandBuffers(this->device, this->cmdpool,
+      this->cbuffers.size(), this->cbuffers.data());
+    vkDestroyCommandPool(this->device, this->cmdpool, nullptr);
+
+    return VK_SUCCESS;
+}
+
+VkResult VkState::release_sync_objects(void)
+{
+    vkDestroyFence(this->device, this->fence, nullptr);
+    vkDestroySemaphore(this->device, this->swapchain.semready, nullptr);
+    vkDestroySemaphore(this->device, this->swapchain.semfinished, nullptr);
+
+    return VK_SUCCESS;
 }
 
 std::vector<char> _read_file(VkState* state, std::string path)
