@@ -78,6 +78,42 @@ void VkState::Release(VkState* state)
     delete(state);
 }
 
+void VkState::RecreateSwapchain(void)
+{
+    vkDeviceWaitIdle(this->device);
+
+    vkResetCommandPool(this->device, this->cmdpool,
+      VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+
+    for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
+        vkDestroyFramebuffer(this->device, this->fbuffers[i], nullptr);
+    }
+
+    vkDestroyPipeline(this->device, this->pipeline.gpipeline, nullptr);
+    vkDestroyPipelineLayout(this->device, this->pipeline.layout, nullptr);
+    vkDestroyRenderPass(this->device, this->pipeline.renderpass, nullptr);
+    vkDestroyShaderModule(this->device,
+      this->pipeline.vshadermodule, nullptr);
+    vkDestroyShaderModule(this->device,
+      this->pipeline.fshadermodule, nullptr);
+    for (uint32_t i = 0; i < this->swapchain.views.size(); i++) {
+        vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
+    }
+
+    vkDestroySemaphore(this->device, this->swapchain.semready, nullptr);
+    vkDestroySemaphore(this->device, this->swapchain.semfinished, nullptr);
+    vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
+    vkFreeCommandBuffers(this->device, this->cmdpool,
+      this->cbuffers.size(), this->cbuffers.data());
+    vkDestroyCommandPool(this->device, this->cmdpool, nullptr);
+
+    this->create_swapchain();
+    this->create_renderpass();
+    this->create_pipeline();
+    this->create_framebuffers();
+    this->create_buffers();
+}
+
 void VkState::Render(void)
 {
     VkResult result = VK_SUCCESS;

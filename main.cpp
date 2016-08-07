@@ -11,9 +11,11 @@ int main(int argc, char* argv[])
     VkState* state = nullptr;
     SDL_Init(SDL_INIT_EVERYTHING);
 
+    uint32_t win_flags = SDL_WINDOW_RESIZABLE;
+
     SDL_Window* win = SDL_CreateWindow("Vulkan Test",
       SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-      WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+      WINDOW_WIDTH, WINDOW_HEIGHT, win_flags);
     if (win == NULL) {
         std::cerr << "Failed to create window." << std::endl;
         exit(-1);
@@ -34,6 +36,11 @@ int main(int argc, char* argv[])
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) {
                 done = true;
+            }
+            if (ev.type == SDL_WINDOWEVENT) {
+                if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    state->RecreateSwapchain();
+                }
             }
         }
 

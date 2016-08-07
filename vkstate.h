@@ -24,6 +24,7 @@ class VkState {
 public:
     static VkState* Init(SDL_Window* win);
     static void Release(VkState* state);
+    void RecreateSwapchain(void);
     void Render(void);
 
     /* These are public, but only function in the debug builds. */
