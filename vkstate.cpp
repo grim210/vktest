@@ -40,12 +40,19 @@ VkState* VkState::Init(SDL_Window* win)
     result = ret->create_buffers();
     ret->_assert(result, "Unable to create command buffers.");
 
+    VkFenceCreateInfo fci = {};
+    fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    result = vkCreateFence(ret->device, &fci, nullptr, &ret->fence);
+    ret->_assert(result, "Unable to create fence.");
+
     return ret;
 }
 
 void VkState::Release(VkState* state)
 {
     vkDeviceWaitIdle(state->device);
+    vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000);
+    vkDestroyFence(state->device, state->fence, nullptr);
 
     vkResetCommandPool(state->device, state->cmdpool,
       VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
@@ -122,6 +129,8 @@ void VkState::Render(void)
     vkAcquireNextImageKHR(this->device, this->swapchain.chain, UINT64_MAX,
       this->swapchain.semready, VK_NULL_HANDLE, &idx);
 
+    vkResetFences(this->device, 1, &this->fence);
+
     VkSemaphore waitsems[] = { this->swapchain.semready };
     VkSemaphore sigsems[] = { this->swapchain.semfinished };
     VkPipelineStageFlags waitstages[] = {
@@ -137,7 +146,7 @@ void VkState::Render(void)
     si.signalSemaphoreCount = 1;
     si.pSignalSemaphores = sigsems;
 
-    result = vkQueueSubmit(this->queues[0], 1, &si, VK_NULL_HANDLE);
+    result = vkQueueSubmit(this->queues[0], 1, &si, this->fence);
     this->_assert(result, "vkQueueSubmit");
 
     VkSwapchainKHR swapchains[] = { this->swapchain.chain };
@@ -151,6 +160,7 @@ void VkState::Render(void)
     pi.pImageIndices = &idx;
 
     vkQueuePresentKHR(this->queues[0], &pi);
+    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, UINT64_MAX);
 }
 
 VkResult VkState::create_buffers(void)

@@ -36,6 +36,7 @@ private:
 
     VkInstance instance;
     VkDevice device;
+    VkFence fence;
 
     std::vector<VkFramebuffer> fbuffers;
     std::vector<VkQueue> queues;
