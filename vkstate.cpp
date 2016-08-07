@@ -100,8 +100,6 @@ void VkState::RecreateSwapchain(void)
         vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
     }
 
-    vkDestroySemaphore(this->device, this->swapchain.semready, nullptr);
-    vkDestroySemaphore(this->device, this->swapchain.semfinished, nullptr);
     vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
     vkFreeCommandBuffers(this->device, this->cmdpool,
       this->cbuffers.size(), this->cbuffers.data());
