@@ -1,4 +1,7 @@
 TARGET=vktest
+SHADERS=\
+	/shaders/test.vert.spv \
+	/shaders/test.frag.spv
 #VKSDK=../Vulkan-LoaderAndValidationLayers
 #VKSDK_INC=-I$(VKSDK)/include/
 #VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
@@ -12,7 +15,7 @@ OBJS=	main.o \
 	vkstate.o \
 	vkstate_debug.o
 
-all: $(TARGET)
+all: $(TARGET) $(SHADERS)
 
 #test:
 #	LD_LIBRARY_PATH=$(VKSDK)/dbuild/loader \
@@ -21,6 +24,9 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+$(SHADERS): ./shaders/src/test.vert ./shaders/src/test.frag
+	cd ./shaders/src/ ; ./build-unix.sh
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
