@@ -1,21 +1,25 @@
 TARGET=vktest.exe
-VK_ROOT=/c/VulkanSDK/1.0.21.0
-VK_INCLUDE=$(VK_ROOT)/Include/
-VK_BIN=$(VK_ROOT)/Bin32/
+VKSDK=/c/VulkanSDK/1.0.21.0
+VKINC=$(VKSDK)/Include/
+VKLIB=$(VKSDK)/Bin32/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VK_INCLUDE) -DVKTEST_DEBUG
+CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
+GLSL=$(VKSDK)/Bin32/glslangValidator
+GLSLFLAGS=-V
 LD=g++
-LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VK_BIN)
+LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VKLIB)
 RM=rm -rf
 OBJS=	main.o \
 	vkstate.o \
 	vkstate_debug.o
+SHADERS=\
+	./shaders/test.vert.spv \
+	./shaders/test.frag.spv
 
-all: $(TARGET)
+all: $(TARGET) $(SHADERS)
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
-	cd shaders/src/ ; ./build-mingw.sh
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
@@ -26,8 +30,14 @@ vkstate.o: vkstate.cpp vkstate.h
 vkstate_debug.o: vkstate_debug.cpp vkstate.h
 	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
 
+./shaders/test.vert.spv: ./shaders/src/test.vert
+	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv
+
+./shaders/test.frag.spv: ./shaders/src/test.frag
+	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.frag -o ./shaders/test.frag.spv
+
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) log.txt
 
 distclean:
-	$(RM) $(OBJS) $(TARGET)
+	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt
