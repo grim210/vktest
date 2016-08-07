@@ -105,9 +105,15 @@ void VkState::Release(VkState* state)
     delete(state);
 }
 
+void VkState::PushEvent(SDL_WindowEvent event)
+{
+    events.push(event);
+}
+
 void VkState::RecreateSwapchain(void)
 {
     vkDeviceWaitIdle(this->device);
+    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, 1000000000);
 
     this->release_render_objects();
 
@@ -167,6 +173,25 @@ void VkState::Render(void)
     pi.pImageIndices = &idx;
 
     vkQueuePresentKHR(this->queues[0], &pi);
+}
+
+void VkState::Update(double elapsed)
+{
+    if (events.empty()) {
+        return;
+    }
+
+    while (!events.empty()) {
+        SDL_WindowEvent ev = events.front();
+        switch (ev.event) {
+        case SDL_WINDOWEVENT_RESIZED:
+            this->RecreateSwapchain();
+            std::cerr << "Recreated swapchain." << std::endl;
+            break;
+        }
+
+        events.pop();
+    }
 }
 
 VkResult VkState::create_buffers(void)

@@ -40,12 +40,11 @@ int main(int argc, char* argv[])
                 done = true;
             }
             if (ev.type == SDL_WINDOWEVENT) {
-                if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    state->RecreateSwapchain();
-                }
+                state->PushEvent(ev.window);
             }
         }
 
+        state->Update(0.0);
         state->Render();
 
         framecount++;

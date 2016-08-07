@@ -5,6 +5,7 @@
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <queue>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -27,14 +28,17 @@ class VkState {
 public:
     static VkState* Init(SDL_Window* win);
     static void Release(VkState* state);
+    void PushEvent(SDL_WindowEvent event);
     void RecreateSwapchain(void);
     void Render(void);
+    void Update(double elapsed);
 
     /* These are public, but only function in the debug builds. */
     void _assert(VkResult, std::string message);
     void _info(std::string message);
 private:
     SDL_Window* window;
+    std::queue<SDL_WindowEvent> events;
     int width, height;
     bool firstpass;
 
@@ -49,7 +53,6 @@ private:
         VkSemaphore semready;
         VkSemaphore semfinished;
         VkExtent2D extent;
-        VkFence fence;
         VkFormat format;
         VkColorSpaceKHR colorspace;
         VkPresentModeKHR mode;
