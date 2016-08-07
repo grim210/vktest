@@ -5,6 +5,8 @@ VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
 CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror \
 	-DVKTEST_VSYNC -DVKTEST_DEBUG $(VKSDK_INC)
+GLSL=../Vulkan-LoaderAndValidationLayers/external/glslang/build/StandAlone/glslangValidator
+GLSLFLAGS=-V
 LD=g++
 LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf
@@ -13,8 +15,6 @@ OBJS=	main.o \
 	vkstate_debug.o
 
 # Shader compilation code
-GLSL=../Vulkan-LoaderAndValidationLayers/external/glslang/build/StandAlone/glslangValidator
-GLSLFLAGS=-V
 SHADERS=\
 	./shaders/test.vert.spv \
 	./shaders/test.frag.spv
