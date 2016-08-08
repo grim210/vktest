@@ -1,4 +1,4 @@
-#include "vkstate.h"
+#include "renderer.h"
 
 #define VKTEST_DEBUG_BREAK_CHAR_COUNT       (60)
 
@@ -17,7 +17,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VkTestDebugReportCallback(
 #endif
 
 /* need this function definition, regardless of build type */
-VkResult VkState::init_debug(void)
+VkResult Renderer::init_debug(void)
 {
 #ifdef VKTEST_DEBUG
     VkResult result = VK_SUCCESS;
@@ -59,7 +59,7 @@ VkResult VkState::init_debug(void)
 #endif
 }
 
-VkResult VkState::release_debug(void)
+VkResult Renderer::release_debug(void)
 {
 #ifdef VKTEST_DEBUG
     std::stringstream out;
@@ -77,7 +77,7 @@ VkResult VkState::release_debug(void)
 
 
 #ifdef VKTEST_DEBUG
-std::fstream* VkState::_get_log_file(void)
+std::fstream* Renderer::_get_log_file(void)
 {
     return &this->log;
 }
@@ -87,7 +87,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VkTestDebugReportCallback(
   uint64_t object, size_t location, int32_t messageCode,
   const char* pLayerPrefix, const char* pMessage, void* pUserData)
 {
-    VkState* state = (VkState*)pUserData;
+    Renderer* state = (Renderer*)pUserData;
     std::stringstream out;
 
     switch (flags) {

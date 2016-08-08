@@ -1,5 +1,5 @@
-#ifndef VKATTEMPT_VKSTATE_H
-#define VKATTEMPT_VKSTATE_H
+#ifndef VKATTEMPT_RENDERER_H
+#define VKATTEMPT_RENDERER_H
 
 #include <cstring>
 #include <array>
@@ -26,10 +26,10 @@
 
 #include "global.h"
 
-class VkState {
+class Renderer {
 public:
-    static VkState* Init(SDL_Window* win);
-    static void Release(VkState* state);
+    static Renderer* Init(SDL_Window* win);
+    static void Release(Renderer* renderer);
     void PushEvent(SDL_WindowEvent event);
     void RecreateSwapchain(void);
     void Render(void);
@@ -118,4 +118,4 @@ public:
 #endif
 };
 
-#endif  /* VKTEST_VKSTATE_H */
+#endif  /* VKTEST_RENDERER_H */

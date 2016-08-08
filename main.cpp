@@ -1,11 +1,12 @@
 #include <iostream>
 
 #include <SDL2/SDL.h>
-#include "vkstate.h"
+#include "global.h"
+#include "renderer.h"
 
 int main(int argc, char* argv[])
 {
-    VkState* state = nullptr;
+    Renderer* rend = nullptr;
 
     SDL_Init(SDL_INIT_EVERYTHING);
 
@@ -13,8 +14,8 @@ int main(int argc, char* argv[])
       SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600,
       SDL_WINDOW_RESIZABLE);
 
-    state = VkState::Init(window);
-    if (!state) {
+    rend = Renderer::Init(window);
+    if (!rend) {
         std::cerr << "Failed to initialize Vulkan library." << std::endl;
         exit(-1);
     }
@@ -30,12 +31,12 @@ int main(int argc, char* argv[])
                 done = true;
             }
             if (ev.type == SDL_WINDOWEVENT) {
-                state->PushEvent(ev.window);
+                rend->PushEvent(ev.window);
             }
         }
 
-        state->Update(0.0);
-        state->Render();
+        rend->Update(0.0);
+        rend->Render();
 
         framecount++;
         if (SDL_GetTicks() - start >= 1000) {
@@ -45,7 +46,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    VkState::Release(state);
+    Renderer::Release(rend);
 
     SDL_DestroyWindow(window);
     SDL_Quit();

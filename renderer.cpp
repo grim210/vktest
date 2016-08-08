@@ -1,12 +1,12 @@
-#include "vkstate.h"
+#include "renderer.h"
 
-VkState* VkState::Init(SDL_Window* win)
+Renderer* Renderer::Init(SDL_Window* win)
 {
     if (!win) {
         return nullptr;
     }
 
-    VkState* ret = new VkState();
+    Renderer* ret = new Renderer();
     ret->window = win;
     ret->gpu.qidx = UINT32_MAX;
 
@@ -60,7 +60,7 @@ VkState* VkState::Init(SDL_Window* win)
     return ret;
 }
 
-void VkState::Release(VkState* state)
+void Renderer::Release(Renderer* state)
 {
     vkDeviceWaitIdle(state->device);
     vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000000);
@@ -73,12 +73,12 @@ void VkState::Release(VkState* state)
     delete(state);
 }
 
-void VkState::PushEvent(SDL_WindowEvent event)
+void Renderer::PushEvent(SDL_WindowEvent event)
 {
     events.push(event);
 }
 
-void VkState::RecreateSwapchain(void)
+void Renderer::RecreateSwapchain(void)
 {
     vkDeviceWaitIdle(this->device);
     vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, 1000000000);
@@ -92,7 +92,7 @@ void VkState::RecreateSwapchain(void)
     this->create_buffers();
 }
 
-void VkState::Render(void)
+void Renderer::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
@@ -143,7 +143,7 @@ void VkState::Render(void)
     vkQueuePresentKHR(this->queues[0], &pi);
 }
 
-void VkState::Update(double elapsed)
+void Renderer::Update(double elapsed)
 {
     if (events.empty()) {
         return;
@@ -162,7 +162,7 @@ void VkState::Update(double elapsed)
     }
 }
 
-VkResult VkState::create_buffers(void)
+VkResult Renderer::create_buffers(void)
 {
     VkResult result = VK_SUCCESS;
 
@@ -264,7 +264,7 @@ VkResult VkState::create_buffers(void)
     return VK_SUCCESS;
 }
 
-VkResult VkState::create_device(void)
+VkResult Renderer::create_device(void)
 {
     VkResult result = VK_SUCCESS;
 
@@ -454,7 +454,7 @@ VkResult VkState::create_device(void)
     * a "pointer" to them from the device.  So when the device is destroyed
     * (or lost), your queues that you retrieve are destroyed along with it.
     * As a result, you will see no vkDestroyQueue or vkReleaseQueue call in
-    * the VkState::Release() method.
+    * the Renderer::Release() method.
     */
     this->queues.resize(this->gpu.queue_properties.queueCount);
     for (uint32_t i = 0; i < this->queues.size(); i++) {
@@ -464,7 +464,7 @@ VkResult VkState::create_device(void)
     return result;
 }
 
-VkResult VkState::create_framebuffers(void)
+VkResult Renderer::create_framebuffers(void)
 {
     VkResult result = VK_SUCCESS;
     this->fbuffers.resize(this->swapchain.views.size());
@@ -491,7 +491,7 @@ VkResult VkState::create_framebuffers(void)
     return result;
 }
 
-VkResult VkState::create_instance(void)
+VkResult Renderer::create_instance(void)
 {
     /* in a sane application, you would verify these extensions are present
      * before barreling away creating your instance.  But because I know
@@ -533,7 +533,7 @@ VkResult VkState::create_instance(void)
     return vkCreateInstance(&create_info, NULL, &this->instance);
 }
 
-VkResult VkState::create_pipeline(void)
+VkResult Renderer::create_pipeline(void)
 {
     VkResult result = VK_SUCCESS;
 
@@ -689,7 +689,7 @@ VkResult VkState::create_pipeline(void)
     return result;
 }
 
-VkResult VkState::create_renderpass(void)
+VkResult Renderer::create_renderpass(void)
 {
     VkResult result = VK_SUCCESS;
 
@@ -726,7 +726,7 @@ VkResult VkState::create_renderpass(void)
     return result;
 }
 
-VkResult VkState::create_swapchain(void)
+VkResult Renderer::create_swapchain(void)
 {
     /*
     * This section of code is dedicated to creating the illustrious swapchain.
@@ -884,7 +884,7 @@ VkResult VkState::create_swapchain(void)
     return result;
 }
 
-uint32_t VkState::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
+uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
 {
     VkPhysicalDeviceMemoryProperties props = this->gpu.memory_properties;
     uint32_t count = props.memoryTypeCount;
@@ -902,7 +902,7 @@ uint32_t VkState::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
     return UINT32_MAX;
 }
 
-VkResult VkState::release_device_objects(void)
+VkResult Renderer::release_device_objects(void)
 {
     vkDestroyDevice(this->device, nullptr);
     vkDestroySurfaceKHR(this->instance, this->swapchain.surface, nullptr);
@@ -910,7 +910,7 @@ VkResult VkState::release_device_objects(void)
     return VK_SUCCESS;
 }
 
-VkResult VkState::release_instance_objects(void)
+VkResult Renderer::release_instance_objects(void)
 {
     this->release_debug();
     vkDestroyInstance(this->instance, nullptr);
@@ -918,7 +918,7 @@ VkResult VkState::release_instance_objects(void)
     return VK_SUCCESS;
 }
 
-VkResult VkState::release_render_objects(void)
+VkResult Renderer::release_render_objects(void)
 {
     vkResetCommandPool(this->device, this->cmdpool,
       VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
@@ -949,7 +949,7 @@ VkResult VkState::release_render_objects(void)
     return VK_SUCCESS;
 }
 
-VkResult VkState::release_sync_objects(void)
+VkResult Renderer::release_sync_objects(void)
 {
     vkDestroyFence(this->device, this->fence, nullptr);
     vkDestroySemaphore(this->device, this->swapchain.semready, nullptr);
