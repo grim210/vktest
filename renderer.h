@@ -36,16 +36,23 @@ public:
     void Update(double elapsed);
 
 private:
-    SDL_Window* window;
-    std::queue<SDL_WindowEvent> events;
-    bool firstpass;
+    SDL_Window* m_window;
+    std::queue<SDL_WindowEvent> m_events;
 
-    VkInstance instance;
-    VkDevice device;
-    VkFence fence;
+    /*
+    * While this feels very clunky, it lets me know if we're in the first
+    * render loop after a swapchain creation.  It may be a crutch (hopefully),
+    * but without it, I get stuck forever waiting on a VkFence that never
+    * gets signalled.
+    */
+    bool m_firstpass;
 
-    std::vector<VkFramebuffer> fbuffers;
-    std::vector<VkQueue> queues;
+    VkInstance m_instance;
+    VkDevice m_device;
+    VkFence m_fence;
+
+    std::vector<VkFramebuffer> m_fbuffers;
+    std::vector<VkQueue> m_queues;
 
     struct Swapchain {
         VkSemaphore semready;
@@ -58,7 +65,7 @@ private:
         VkSwapchainKHR chain;
         std::vector<VkImage> images;
         std::vector<VkImageView> views;
-    } swapchain;
+    } m_swapchain;
 
     /*
     * The VkPhysicalDevice, after you create your VkDevice, is pretty much
@@ -71,7 +78,7 @@ private:
         VkPhysicalDeviceProperties properties;
         VkPhysicalDeviceMemoryProperties memory_properties;
         VkQueueFamilyProperties queue_properties;
-    } gpu;
+    } m_gpu;
 
     struct GraphicsPipline {
         VkRenderPass renderpass;
@@ -79,14 +86,14 @@ private:
         VkPipelineLayout layout;
         VkShaderModule vshadermodule;
         VkShaderModule fshadermodule;
-    } pipeline;
+    } m_pipeline;
 
-    VkCommandPool cmdpool;
-    std::vector<VkCommandBuffer> cbuffers;
+    VkCommandPool m_cmdpool;
+    std::vector<VkCommandBuffer> m_cmdbuffers;
 
-    std::vector<Vertex> vertices;
-    VkBuffer vbuffer;
-    VkDeviceMemory vbuffermem;
+    std::vector<Vertex> m_vertices;
+    VkBuffer m_vbuffer;
+    VkDeviceMemory m_vbuffermem;
 
     VkResult create_buffers(void);
     VkResult create_device(void);
@@ -113,8 +120,8 @@ private:
     VkResult release_debug(void);
 
 #ifdef VKTEST_DEBUG
-    VkDebugReportCallbackEXT callback;
-    std::fstream log;
+    VkDebugReportCallbackEXT m_callback;
+    std::fstream m_log;
 public:
     std::fstream* _get_log_file(void);
 #endif

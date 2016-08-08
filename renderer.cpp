@@ -7,13 +7,13 @@ Renderer* Renderer::Init(SDL_Window* win)
     }
 
     Renderer* ret = new Renderer();
-    ret->window = win;
-    ret->gpu.qidx = UINT32_MAX;
+    ret->m_window = win;
+    ret->m_gpu.qidx = UINT32_MAX;
 
     VkResult result = VK_SUCCESS;
 
     /* Get our dummy data going */
-    ret->vertices = {
+    ret->m_vertices = {
         {{ 0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}},
         {{ 0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
         {{-0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}}
@@ -21,59 +21,59 @@ Renderer* Renderer::Init(SDL_Window* win)
 
     result = ret->create_instance();
     Assert(result, "Failed to create Vulkan instance.  Do you have a "
-      "compatible system with up-to-date drivers?", win);
+      "compatible system with up-to-date drivers?", ret->m_window);
 
     result = ret->init_debug();
-    Assert(result, "Failed to initialize the debug extension.", win);
+    Assert(result, "Failed to initialize the debug extension.", ret->m_window);
 
     result = ret->create_surface();
-    Assert(result, "Unable to create VkSurfaceKHR", win);
+    Assert(result, "Unable to create VkSurfaceKHR", ret->m_window);
 
     result = ret->create_device();
     Assert(result, "Failed to create a rendering device.  Do you have "
-      "up-to-date drivers?", win);
+      "up-to-date drivers?", ret->m_window);
 
     result = ret->create_swapchain();
-    Assert(result, "Unable to create Swapchain.", win);
+    Assert(result, "Unable to create Swapchain.", ret->m_window);
 
     result = ret->create_renderpass();
-    Assert(result, "Unable to create Renderpass object.", win);
+    Assert(result, "Unable to create Renderpass object.", ret->m_window);
 
     result = ret->create_pipeline();
-    Assert(result, "Unable to create graphics pipeline.", win);
+    Assert(result, "Unable to create graphics pipeline.", ret->m_window);
 
     result = ret->create_framebuffers();
-    Assert(result, "Unable to create framebuffer objects.", win);
+    Assert(result, "Unable to create framebuffer objects.", ret->m_window);
 
     result = ret->create_buffers();
-    Assert(result, "Unable to create command buffers.", win);
+    Assert(result, "Unable to create command buffers.", ret->m_window);
 
     VkFenceCreateInfo fci = {};
     fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fci.pNext = nullptr;
     fci.flags = 0;
-    result = vkCreateFence(ret->device, &fci, nullptr, &ret->fence);
-    Assert(result, "Unable to create fence.", win);
+    result = vkCreateFence(ret->m_device, &fci, nullptr, &ret->m_fence);
+    Assert(result, "Unable to create fence.", ret->m_window);
 
     VkSemaphoreCreateInfo semci = {};
     semci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    result = vkCreateSemaphore(ret->device, &semci, nullptr,
-      &ret->swapchain.semready);
-    Assert(result, "vkCreateSemaphore: swapchain.semready", win);
+    result = vkCreateSemaphore(ret->m_device, &semci, nullptr,
+      &ret->m_swapchain.semready);
+    Assert(result, "vkCreateSemaphore: swapchain.semready", ret->m_window);
 
-    result = vkCreateSemaphore(ret->device, &semci, nullptr,
-      &ret->swapchain.semfinished);
-    Assert(result, "vkCreateSemaphore: swapchain.semfinished", win);
+    result = vkCreateSemaphore(ret->m_device, &semci, nullptr,
+      &ret->m_swapchain.semfinished);
+    Assert(result, "vkCreateSemaphore: swapchain.semfinished", ret->m_window);
 
-    ret->firstpass = true;
+    ret->m_firstpass = true;
 
     return ret;
 }
 
 void Renderer::Release(Renderer* state)
 {
-    vkDeviceWaitIdle(state->device);
-    vkWaitForFences(state->device, 1, &state->fence, VK_TRUE, 1000000000);
+    vkDeviceWaitIdle(state->m_device);
+    vkWaitForFences(state->m_device, 1, &state->m_fence, VK_TRUE, 1000000000);
 
     state->release_render_objects();
     state->release_sync_objects();
@@ -85,13 +85,13 @@ void Renderer::Release(Renderer* state)
 
 void Renderer::PushEvent(SDL_WindowEvent event)
 {
-    events.push(event);
+    m_events.push(event);
 }
 
 void Renderer::RecreateSwapchain(void)
 {
-    vkDeviceWaitIdle(this->device);
-    vkWaitForFences(this->device, 1, &this->fence, VK_TRUE, 1000000000);
+    vkDeviceWaitIdle(m_device);
+    vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 1000000000);
 
     this->release_render_objects();
 
@@ -101,32 +101,32 @@ void Renderer::RecreateSwapchain(void)
     this->create_framebuffers();
     this->create_buffers();
 
-    vkDeviceWaitIdle(this->device);
-    this->firstpass = true;
+    vkDeviceWaitIdle(m_device);
+    m_firstpass = true;
 }
 
 void Renderer::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
-    result = vkWaitForFences(this->device, 1, &this->fence,
+    result = vkWaitForFences(m_device, 1, &m_fence,
       VK_TRUE, 100000000);
     if (result) {
-        if (this->firstpass) {
-            this->firstpass = false;
+        if (m_firstpass) {
+            m_firstpass = false;
         } else {
             Info("Framerate is _really_ low..");
         }
     }
 
-    vkResetFences(this->device, 1, &this->fence);
+    vkResetFences(m_device, 1, &m_fence);
 
     uint32_t idx = 0;
-    vkAcquireNextImageKHR(this->device, this->swapchain.chain, UINT64_MAX,
-      this->swapchain.semready, VK_NULL_HANDLE, &idx);
+    vkAcquireNextImageKHR(m_device, m_swapchain.chain, UINT64_MAX,
+      m_swapchain.semready, VK_NULL_HANDLE, &idx);
 
-    VkSemaphore waitsems[] = { this->swapchain.semready };
-    VkSemaphore sigsems[] = { this->swapchain.semfinished };
+    VkSemaphore waitsems[] = { m_swapchain.semready };
+    VkSemaphore sigsems[] = { m_swapchain.semfinished };
     VkPipelineStageFlags waitstages[] = {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
@@ -136,14 +136,14 @@ void Renderer::Render(void)
     si.pWaitSemaphores = waitsems;
     si.pWaitDstStageMask = waitstages;
     si.commandBufferCount = 1;
-    si.pCommandBuffers = &this->cbuffers[idx];
+    si.pCommandBuffers = &m_cmdbuffers[idx];
     si.signalSemaphoreCount = 1;
     si.pSignalSemaphores = sigsems;
 
-    result = vkQueueSubmit(this->queues[0], 1, &si, this->fence);
-    Assert(result, "vkQueueSubmit", this->window);
+    result = vkQueueSubmit(m_queues[0], 1, &si, m_fence);
+    Assert(result, "vkQueueSubmit", m_window);
 
-    VkSwapchainKHR swapchains[] = { this->swapchain.chain };
+    VkSwapchainKHR swapchains[] = { m_swapchain.chain };
 
     VkPresentInfoKHR pi = {};
     pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -153,24 +153,24 @@ void Renderer::Render(void)
     pi.pSwapchains = swapchains;
     pi.pImageIndices = &idx;
 
-    vkQueuePresentKHR(this->queues[0], &pi);
+    vkQueuePresentKHR(m_queues[0], &pi);
 }
 
 void Renderer::Update(double elapsed)
 {
-    if (events.empty()) {
+    if (m_events.empty()) {
         return;
     }
 
-    while (!events.empty()) {
-        SDL_WindowEvent ev = events.front();
+    while (!m_events.empty()) {
+        SDL_WindowEvent ev = m_events.front();
         switch (ev.event) {
         case SDL_WINDOWEVENT_RESIZED:
             this->RecreateSwapchain();
             break;
         }
 
-        events.pop();
+        m_events.pop();
     }
 }
 
@@ -183,19 +183,19 @@ VkResult Renderer::create_buffers(void)
     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cpci.pNext = nullptr;
     cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    cpci.queueFamilyIndex = this->gpu.qidx;
-    result = vkCreateCommandPool(this->device, &cpci, nullptr,
-      &this->cmdpool);
-    Assert(result, "vkCreateCommandPool", this->window);
+    cpci.queueFamilyIndex = m_gpu.qidx;
+    result = vkCreateCommandPool(m_device, &cpci, nullptr,
+      &m_cmdpool);
+    Assert(result, "vkCreateCommandPool", m_window);
 
     /* Vertex buffer creation */
     VkBufferCreateInfo bci = {};
     bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bci.flags = 0;
-    bci.size = (sizeof(vertices[0]) * vertices.size());
+    bci.size = (sizeof(m_vertices[0]) * m_vertices.size());
     bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    result = vkCreateBuffer(this->device, &bci, nullptr, &this->vbuffer);
+    result = vkCreateBuffer(m_device, &bci, nullptr, &m_vbuffer);
     Assert(result, "vkCreateBuffer: vertex buffer");
 
     /*
@@ -205,7 +205,7 @@ VkResult Renderer::create_buffers(void)
     * actually fill our buffer with vertex data.
     */
     VkMemoryRequirements memreq;
-    vkGetBufferMemoryRequirements(this->device, vbuffer, &memreq);
+    vkGetBufferMemoryRequirements(m_device, m_vbuffer, &memreq);
 
     VkMemoryAllocateInfo mai = {};
     mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -213,64 +213,64 @@ VkResult Renderer::create_buffers(void)
     mai.memoryTypeIndex = this->find_memory_type(memreq.memoryTypeBits,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    result = vkAllocateMemory(this->device, &mai, nullptr, &this->vbuffermem);
-    Assert(result, "vkAllocateMemory: vertex buffer memory.", this->window);
+    result = vkAllocateMemory(m_device, &mai, nullptr, &m_vbuffermem);
+    Assert(result, "vkAllocateMemory: vertex buffer memory.", m_window);
 
-    vkBindBufferMemory(this->device, this->vbuffer, this->vbuffermem, 0);
+    vkBindBufferMemory(m_device, m_vbuffer, m_vbuffermem, 0);
 
     /* bci.size is from when we created the original buffer...i had to look. */
     void* data;
-    vkMapMemory(this->device, this->vbuffermem, 0, bci.size, 0, &data);
-    std::memcpy(data, vertices.data(), (size_t)bci.size);
-    vkUnmapMemory(this->device, this->vbuffermem);
+    vkMapMemory(m_device, m_vbuffermem, 0, bci.size, 0, &data);
+    std::memcpy(data, m_vertices.data(), (size_t)bci.size);
+    vkUnmapMemory(m_device, m_vbuffermem);
 
     /* Command buffer creation */
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbai.pNext = nullptr;
-    cbai.commandPool = this->cmdpool;
+    cbai.commandPool = m_cmdpool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cbai.commandBufferCount = this->fbuffers.size();
-    this->cbuffers.resize(this->fbuffers.size());
-    result = vkAllocateCommandBuffers(this->device, &cbai,
-      this->cbuffers.data());
-    Assert(result, "vkAllocateCommandBuffers", this->window);
+    cbai.commandBufferCount = m_fbuffers.size();
+    m_cmdbuffers.resize(m_fbuffers.size());
+    result = vkAllocateCommandBuffers(m_device, &cbai,
+      m_cmdbuffers.data());
+    Assert(result, "vkAllocateCommandBuffers", m_window);
 
     /* I'm not sure what this is...will figure out. */
-    for (uint32_t i = 0; i < this->cbuffers.size(); i++) {
+    for (uint32_t i = 0; i < m_cmdbuffers.size(); i++) {
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-        vkBeginCommandBuffer(this->cbuffers[i], &begin_info);
+        vkBeginCommandBuffer(m_cmdbuffers[i], &begin_info);
 
         VkRenderPassBeginInfo rpi = {};
         rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        rpi.renderPass = this->pipeline.renderpass;
-        rpi.framebuffer = this->fbuffers[i];
+        rpi.renderPass = m_pipeline.renderpass;
+        rpi.framebuffer = m_fbuffers[i];
         rpi.renderArea.offset = { 0, 0 };
-        rpi.renderArea.extent = this->swapchain.extent;
+        rpi.renderArea.extent = m_swapchain.extent;
 
         VkClearValue clear_color = { 0.2f, 0.2f, 0.2f, 1.0f };
         rpi.clearValueCount = 1;
         rpi.pClearValues = &clear_color;
 
-        vkCmdBeginRenderPass(this->cbuffers[i], &rpi,
+        vkCmdBeginRenderPass(m_cmdbuffers[i], &rpi,
           VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(this->cbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-          this->pipeline.gpipeline);
+        vkCmdBindPipeline(m_cmdbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+          m_pipeline.gpipeline);
 
-        VkBuffer vbuffs[] = {this->vbuffer};
+        VkBuffer vbuffs[] = {m_vbuffer};
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(this->cbuffers[i], 0, 1, vbuffs, offsets);
+        vkCmdBindVertexBuffers(m_cmdbuffers[i], 0, 1, vbuffs, offsets);
 
-        vkCmdDraw(this->cbuffers[i], vertices.size(), 1, 0, 0);
+        vkCmdDraw(m_cmdbuffers[i], m_vertices.size(), 1, 0, 0);
 
-        vkCmdEndRenderPass(this->cbuffers[i]);
+        vkCmdEndRenderPass(m_cmdbuffers[i]);
 
-        result = vkEndCommandBuffer(this->cbuffers[i]);
-        Assert(result, "vkEndCommandBuffer", this->window);
+        result = vkEndCommandBuffer(m_cmdbuffers[i]);
+        Assert(result, "vkEndCommandBuffer", m_window);
     }
 
     return VK_SUCCESS;
@@ -289,10 +289,10 @@ VkResult Renderer::create_device(void)
      */
     uint32_t device_count = 0;
     std::vector<VkPhysicalDevice> physical_devices;
-    result = vkEnumeratePhysicalDevices(this->instance, &device_count, nullptr);
+    result = vkEnumeratePhysicalDevices(m_instance, &device_count, nullptr);
 
     physical_devices.resize(device_count);
-    result = vkEnumeratePhysicalDevices(this->instance, &device_count,
+    result = vkEnumeratePhysicalDevices(m_instance, &device_count,
       physical_devices.data());
 
     /*
@@ -301,7 +301,7 @@ VkResult Renderer::create_device(void)
      * I imagine that it would be possible to come across a device that can
      * do one or the other, so I'm not considering that case.
      */
-    this->gpu.qidx = UINT32_MAX;
+    m_gpu.qidx = UINT32_MAX;
     for (uint32_t i = 0; i < device_count; i++) {
         uint32_t queue_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physical_devices[i],
@@ -327,16 +327,16 @@ VkResult Renderer::create_device(void)
             if (target_queue.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 VkBool32 support = VK_FALSE;
                 VkResult tr = vkGetPhysicalDeviceSurfaceSupportKHR(
-                  target_device, j, this->swapchain.surface, &support);
+                  target_device, j, m_swapchain.surface, &support);
                 Assert(tr, "vkGetPhysicalDeviceSurfaceSupportKHR",
-                  this->window);
+                  m_window);
 
                 /* Notice that we're saving both the physical device and the
                  * queue index that supports presenting and rendering. */
                 if (support == VK_TRUE) {
-                    this->gpu.device = physical_devices[i];
-                    this->gpu.qidx = j;
-                    this->gpu.queue_properties = target_queue;
+                    m_gpu.device = physical_devices[i];
+                    m_gpu.qidx = j;
+                    m_gpu.queue_properties = target_queue;
                     break;
                 }
             }
@@ -344,7 +344,7 @@ VkResult Renderer::create_device(void)
 
         /* Used to determine if a suitable device and queue index has already
          * been found to break out of the outer VkPhysicalDevice loop. */
-        if (this->gpu.qidx != UINT32_MAX) {
+        if (m_gpu.qidx != UINT32_MAX) {
             break;
         }
     }
@@ -354,10 +354,10 @@ VkResult Renderer::create_device(void)
     * we capture some additional information that will be useful for us
     * in the future.
     */
-    vkGetPhysicalDeviceFeatures(this->gpu.device, &this->gpu.features);
-    vkGetPhysicalDeviceProperties(this->gpu.device, &this->gpu.properties);
-    vkGetPhysicalDeviceMemoryProperties(this->gpu.device,
-      &this->gpu.memory_properties);
+    vkGetPhysicalDeviceFeatures(m_gpu.device, &m_gpu.features);
+    vkGetPhysicalDeviceProperties(m_gpu.device, &m_gpu.properties);
+    vkGetPhysicalDeviceMemoryProperties(m_gpu.device,
+      &m_gpu.memory_properties);
 
     /*
     * In this section of code, we actually create the logical VkDevice that
@@ -376,7 +376,7 @@ VkResult Renderer::create_device(void)
     * you have a device capable of sending draw commands to...eventually.
     */
     std::vector<float> queue_priorities;
-    queue_priorities.resize(gpu.queue_properties.queueCount);
+    queue_priorities.resize(m_gpu.queue_properties.queueCount);
     for (uint32_t i = 1; i <= queue_priorities.size(); i++) {
         queue_priorities[i-1] = 1.0f / i;
     }
@@ -386,8 +386,8 @@ VkResult Renderer::create_device(void)
     q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     q_create_info.pNext = nullptr;
     q_create_info.flags = 0;
-    q_create_info.queueFamilyIndex = this->gpu.qidx;
-    q_create_info.queueCount = gpu.queue_properties.queueCount;
+    q_create_info.queueFamilyIndex = m_gpu.qidx;
+    q_create_info.queueCount = m_gpu.queue_properties.queueCount;
     q_create_info.pQueuePriorities = queue_priorities.data();
 
     const char* swap_extension[] = { "VK_KHR_swapchain" };
@@ -400,7 +400,7 @@ VkResult Renderer::create_device(void)
     const char* dev_layers[] = { nullptr };
 #endif
 
-    this->gpu.features.shaderClipDistance = VK_TRUE;
+    m_gpu.features.shaderClipDistance = VK_TRUE;
 
     VkDeviceCreateInfo d_create_info = {};
     d_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -412,10 +412,10 @@ VkResult Renderer::create_device(void)
     d_create_info.ppEnabledLayerNames = dev_layers;
     d_create_info.enabledExtensionCount = 1;
     d_create_info.ppEnabledExtensionNames = swap_extension;
-    d_create_info.pEnabledFeatures = &this->gpu.features;
+    d_create_info.pEnabledFeatures = &m_gpu.features;
 
-    result = vkCreateDevice(this->gpu.device, &d_create_info, NULL, 
-      &this->device);
+    result = vkCreateDevice(m_gpu.device, &d_create_info, NULL, 
+      &m_device);
 
     /*
     * Once we've created the logical VkDevice that will be doing our work,
@@ -429,9 +429,9 @@ VkResult Renderer::create_device(void)
     * As a result, you will see no vkDestroyQueue or vkReleaseQueue call in
     * the Renderer::Release() method.
     */
-    this->queues.resize(this->gpu.queue_properties.queueCount);
-    for (uint32_t i = 0; i < this->queues.size(); i++) {
-        vkGetDeviceQueue(this->device, this->gpu.qidx, i, &this->queues[i]);
+    m_queues.resize(m_gpu.queue_properties.queueCount);
+    for (uint32_t i = 0; i < m_queues.size(); i++) {
+        vkGetDeviceQueue(m_device, m_gpu.qidx, i, &m_queues[i]);
     }
 
     return result;
@@ -440,25 +440,25 @@ VkResult Renderer::create_device(void)
 VkResult Renderer::create_framebuffers(void)
 {
     VkResult result = VK_SUCCESS;
-    this->fbuffers.resize(this->swapchain.views.size());
+    m_fbuffers.resize(m_swapchain.views.size());
 
-    for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
+    for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
         VkImageView attachments[] = {
-            this->swapchain.views[i]
+            m_swapchain.views[i]
         };
 
         VkFramebufferCreateInfo fci = {};
         fci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fci.renderPass = this->pipeline.renderpass;
+        fci.renderPass = m_pipeline.renderpass;
         fci.attachmentCount = 1;
         fci.pAttachments = attachments;
-        fci.width = this->swapchain.extent.width;
-        fci.height = this->swapchain.extent.height;
+        fci.width = m_swapchain.extent.width;
+        fci.height = m_swapchain.extent.height;
         fci.layers = 1;
 
-        result = vkCreateFramebuffer(this->device, &fci, nullptr,
-          &this->fbuffers[i]);
-        Assert(result, "vkCreateFramebuffer", this->window);
+        result = vkCreateFramebuffer(m_device, &fci, nullptr,
+          &m_fbuffers[i]);
+        Assert(result, "vkCreateFramebuffer", m_window);
     }
 
     return result;
@@ -503,7 +503,7 @@ VkResult Renderer::create_instance(void)
     create_info.enabledExtensionCount = extensions.size();
     create_info.ppEnabledExtensionNames = extensions.data();
 
-    return vkCreateInstance(&create_info, NULL, &this->instance);
+    return vkCreateInstance(&create_info, NULL, &m_instance);
 }
 
 VkResult Renderer::create_pipeline(void)
@@ -517,26 +517,26 @@ VkResult Renderer::create_pipeline(void)
     smci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     smci.codeSize = vshader.size();
     smci.pCode = (const uint32_t*)vshader.data();
-    result = vkCreateShaderModule(this->device, &smci, nullptr,
-      &this->pipeline.vshadermodule);
-    Assert(result, "vkCreateShaderModule: vertex shader.", this->window);
+    result = vkCreateShaderModule(m_device, &smci, nullptr,
+      &m_pipeline.vshadermodule);
+    Assert(result, "vkCreateShaderModule: vertex shader.", m_window);
 
     smci.codeSize = fshader.size();
     smci.pCode = (const uint32_t*)fshader.data();
-    result = vkCreateShaderModule(this->device, &smci, nullptr,
-      &this->pipeline.fshadermodule);
-    Assert(result, "vkCreateShaderModule: fragment shader.", this->window);
+    result = vkCreateShaderModule(m_device, &smci, nullptr,
+      &m_pipeline.fshadermodule);
+    Assert(result, "vkCreateShaderModule: fragment shader.", m_window);
 
     VkPipelineShaderStageCreateInfo vssi = {};
     vssi.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vssi.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vssi.module = this->pipeline.vshadermodule;
+    vssi.module = m_pipeline.vshadermodule;
     vssi.pName = "main";
 
     VkPipelineShaderStageCreateInfo fssi = {};
     fssi.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fssi.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fssi.module = this->pipeline.fshadermodule;
+    fssi.module = m_pipeline.fshadermodule;
     fssi.pName = "main";
 
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages;
@@ -564,14 +564,14 @@ VkResult Renderer::create_pipeline(void)
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)this->swapchain.extent.width;
-    viewport.height = (float)this->swapchain.extent.height;
+    viewport.width = (float)m_swapchain.extent.width;
+    viewport.height = (float)m_swapchain.extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset = {0, 0};
-    scissor.extent = this->swapchain.extent;
+    scissor.extent = m_swapchain.extent;
 
     VkPipelineViewportStateCreateInfo vstate = {};
     vstate.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -633,9 +633,9 @@ VkResult Renderer::create_pipeline(void)
     plci.pushConstantRangeCount = 0;
     plci.pPushConstantRanges = nullptr;
 
-    result = vkCreatePipelineLayout(this->device, &plci, nullptr,
-      &this->pipeline.layout);
-    Assert(result, "vkCreatePipelineLayout", this->window);
+    result = vkCreatePipelineLayout(m_device, &plci, nullptr,
+      &m_pipeline.layout);
+    Assert(result, "vkCreatePipelineLayout", m_window);
 
     VkGraphicsPipelineCreateInfo pci = {};
     pci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -649,15 +649,15 @@ VkResult Renderer::create_pipeline(void)
     pci.pDepthStencilState = nullptr;
     pci.pColorBlendState = &cbsci;
     pci.pDynamicState = nullptr;
-    pci.layout = this->pipeline.layout;
-    pci.renderPass = this->pipeline.renderpass;
+    pci.layout = m_pipeline.layout;
+    pci.renderPass = m_pipeline.renderpass;
     pci.subpass = 0;
     pci.basePipelineHandle = VK_NULL_HANDLE;
     pci.basePipelineIndex = -1;
 
-    result = vkCreateGraphicsPipelines(this->device, VK_NULL_HANDLE, 1,
-      &pci, nullptr, &this->pipeline.gpipeline);
-    Assert(result, "vkCreateGraphicsPipelines", this->window);
+    result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1,
+      &pci, nullptr, &m_pipeline.gpipeline);
+    Assert(result, "vkCreateGraphicsPipelines", m_window);
 
     return result;
 }
@@ -667,7 +667,7 @@ VkResult Renderer::create_renderpass(void)
     VkResult result = VK_SUCCESS;
 
     VkAttachmentDescription color_attachment = {};
-    color_attachment.format = this->swapchain.format;
+    color_attachment.format = m_swapchain.format;
     color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -692,9 +692,9 @@ VkResult Renderer::create_renderpass(void)
     rpci.subpassCount = 1;
     rpci.pSubpasses = &subpass;
 
-    result = vkCreateRenderPass(this->device, &rpci, nullptr,
-      &this->pipeline.renderpass);
-    Assert(result, "vkCreateRenderPass", this->window);
+    result = vkCreateRenderPass(m_device, &rpci, nullptr,
+      &m_pipeline.renderpass);
+    Assert(result, "vkCreateRenderPass", m_window);
 
     return result;
 }
@@ -712,8 +712,8 @@ VkResult Renderer::create_surface(void)
 
     SDL_SysWMinfo info = {};
     SDL_VERSION(&info.version);
-    if (SDL_GetWindowWMInfo(this->window, &info) != SDL_TRUE) {
-        Assert(VK_INCOMPLETE, SDL_GetError(), this->window);
+    if (SDL_GetWindowWMInfo(m_window, &info) != SDL_TRUE) {
+        Assert(VK_INCOMPLETE, SDL_GetError(), m_window);
     }
 
 #if defined(__linux__)
@@ -723,8 +723,8 @@ VkResult Renderer::create_surface(void)
     si.flags = 0;
     si.connection = XGetXCBConnection(info.info.x11.display);
     si.window = info.info.x11.window;
-    result = vkCreateXcbSurfaceKHR(this->instance, &si, nullptr,
-      &this->swapchain.surface);
+    result = vkCreateXcbSurfaceKHR(m_instance, &si, nullptr,
+      &m_swapchain.surface);
 #elif defined(_WIN32)
     VkWin32SurfaceCreateInfoKHR si = {};
     si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -732,11 +732,11 @@ VkResult Renderer::create_surface(void)
     si.flags = 0;
     si.hinstance = GetModuleHandle(NULL);
     si.hwnd = info.info.win.window;
-    result = vkCreateWin32SurfaceKHR(this->instance, &si, nullptr,
-      &this->swapchain.surface);
+    result = vkCreateWin32SurfaceKHR(m_instance, &si, nullptr,
+      &m_swapchain.surface);
 #else
     Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
-      "VkSurfaceKHR creation.", this->window);
+      "VkSurfaceKHR creation.", m_window);
 #endif
     return result;
 }
@@ -758,22 +758,22 @@ VkResult Renderer::create_swapchain(void)
     */
     count = 0;
     std::vector<VkSurfaceFormatKHR> surface_formats;
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(this->gpu.device,
-      this->swapchain.surface, &count, nullptr);
-    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", this->window);
+    result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.device,
+      m_swapchain.surface, &count, nullptr);
+    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", m_window);
 
     surface_formats.resize(count);
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(this->gpu.device,
-      this->swapchain.surface, &count, surface_formats.data());
-    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", this->window);
+    result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.device,
+      m_swapchain.surface, &count, surface_formats.data());
+    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", m_window);
 
     /* There appears to be only one color space, but I'll grab it from
      * the surface formats just to be safe. */
-    this->swapchain.colorspace = surface_formats[0].colorSpace;
+    m_swapchain.colorspace = surface_formats[0].colorSpace;
     if (count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED) {
-        this->swapchain.format = VK_FORMAT_B8G8R8_UNORM;
+        m_swapchain.format = VK_FORMAT_B8G8R8_UNORM;
     } else {
-        this->swapchain.format = surface_formats[0].format;
+        m_swapchain.format = surface_formats[0].format;
     }
 
     /*
@@ -784,8 +784,8 @@ VkResult Renderer::create_swapchain(void)
     * pretty common, but I'd rather not add the complexity.
     */
     VkSurfaceCapabilitiesKHR sc = {};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(this->gpu.device,
-      this->swapchain.surface, &sc);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_gpu.device,
+      m_swapchain.surface, &sc);
 
     /* Translation: if the surface's minimum capability is greater than 2, use
     * that.  But if the surface cannot support two, use the max supported. */
@@ -802,15 +802,15 @@ VkResult Renderer::create_swapchain(void)
     * actual surface.
     */
     int width, height;
-    SDL_GetWindowSize(this->window, &width, &height);
+    SDL_GetWindowSize(m_window, &width, &height);
 
     /* Compare that to the surface capabilities structure. */
     if (sc.currentExtent.width == UINT32_MAX) {
-        this->swapchain.extent.width = static_cast<uint32_t>(width);
-        this->swapchain.extent.height = static_cast<uint32_t>(height);
+        m_swapchain.extent.width = static_cast<uint32_t>(width);
+        m_swapchain.extent.height = static_cast<uint32_t>(height);
     } else {
-        this->swapchain.extent.width = sc.currentExtent.width;
-        this->swapchain.extent.height = sc.currentExtent.height;
+        m_swapchain.extent.width = sc.currentExtent.width;
+        m_swapchain.extent.height = sc.currentExtent.height;
     }
 
     VkSurfaceTransformFlagBitsKHR pre_transform = sc.currentTransform;
@@ -820,23 +820,23 @@ VkResult Renderer::create_swapchain(void)
 
     count = 0;
     std::vector<VkPresentModeKHR> present_modes;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(this->gpu.device,
-      this->swapchain.surface, &count, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.device,
+      m_swapchain.surface, &count, nullptr);
 
     present_modes.resize(count);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(this->gpu.device,
-      this->swapchain.surface, &count, present_modes.data());
+    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.device,
+      m_swapchain.surface, &count, present_modes.data());
 
-    this->swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
+    m_swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
     for (uint32_t i = 0; i < present_modes.size(); i++) {
 #ifdef VKTEST_VSYNC
         if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-            this->swapchain.mode = present_modes[i];
+            m_swapchain.mode = present_modes[i];
             break;
         }
 #else
         if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-            this->swapchain.mode = present_modes[i];
+            m_swapchain.mode = present_modes[i];
         }
 #endif
     }
@@ -845,11 +845,11 @@ VkResult Renderer::create_swapchain(void)
     sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     sci.pNext = VK_NULL_HANDLE;
     sci.flags = 0;
-    sci.surface = swapchain.surface;
+    sci.surface = m_swapchain.surface;
     sci.minImageCount = image_count;        // should I _require_ two?
-    sci.imageFormat = this->swapchain.format;
-    sci.imageColorSpace = this->swapchain.colorspace;
-    sci.imageExtent = this->swapchain.extent;
+    sci.imageFormat = m_swapchain.format;
+    sci.imageColorSpace = m_swapchain.colorspace;
+    sci.imageExtent = m_swapchain.extent;
     sci.imageArrayLayers = 1;   // 1, since we're not doing stereoscopic 3D :|
     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -857,31 +857,31 @@ VkResult Renderer::create_swapchain(void)
     sci.pQueueFamilyIndices = VK_NULL_HANDLE;   // because .imageSharingMode
     sci.preTransform = pre_transform;
     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    sci.presentMode = this->swapchain.mode;
+    sci.presentMode = m_swapchain.mode;
     sci.clipped = VK_TRUE;
     sci.oldSwapchain = VK_NULL_HANDLE;
 
-    result = vkCreateSwapchainKHR(this->device, &sci, NULL,
-      &this->swapchain.chain);
-    Assert(result, "vkCreateSwapchainKHR", this->window);
+    result = vkCreateSwapchainKHR(m_device, &sci, NULL,
+      &m_swapchain.chain);
+    Assert(result, "vkCreateSwapchainKHR", m_window);
 
     count = 0;
-    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
+    result = vkGetSwapchainImagesKHR(m_device, m_swapchain.chain,
       &count, nullptr);
-    Assert(result, "vkGetSwapchainImagesKHR", this->window);
+    Assert(result, "vkGetSwapchainImagesKHR", m_window);
 
-    this->swapchain.images.resize(count);
-    result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
-      &count, this->swapchain.images.data());
-    Assert(result, "vkGetSwapchainImagesKHR", this->window);
+    m_swapchain.images.resize(count);
+    result = vkGetSwapchainImagesKHR(m_device, m_swapchain.chain,
+      &count, m_swapchain.images.data());
+    Assert(result, "vkGetSwapchainImagesKHR", m_window);
 
-    this->swapchain.views.resize(count);
+    m_swapchain.views.resize(count);
     for (uint32_t i = 0; i < count; i++) {
         VkImageViewCreateInfo ivci = {};
         ivci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        ivci.image = this->swapchain.images[i];
+        ivci.image = m_swapchain.images[i];
         ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        ivci.format = this->swapchain.format;
+        ivci.format = m_swapchain.format;
         ivci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         ivci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         ivci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -892,9 +892,9 @@ VkResult Renderer::create_swapchain(void)
         ivci.subresourceRange.baseArrayLayer = 0;
         ivci.subresourceRange.layerCount = 1;
 
-        result = vkCreateImageView(this->device, &ivci, nullptr,
-          &this->swapchain.views[i]);
-        Assert(result, "vkCreateImageView", this->window);
+        result = vkCreateImageView(m_device, &ivci, nullptr,
+          &m_swapchain.views[i]);
+        Assert(result, "vkCreateImageView", m_window);
     }
 
     return result;
@@ -902,7 +902,7 @@ VkResult Renderer::create_swapchain(void)
 
 uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
 {
-    VkPhysicalDeviceMemoryProperties props = this->gpu.memory_properties;
+    VkPhysicalDeviceMemoryProperties props = m_gpu.memory_properties;
     uint32_t count = props.memoryTypeCount;
 
     for (uint32_t i = 0; i < count; i++) {
@@ -913,15 +913,15 @@ uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags
     }
 
     Assert(VK_ERROR_INCOMPATIBLE_DRIVER,
-      "Failed to find suitable GPU memory for vertex data", this->window);
+      "Failed to find suitable GPU memory for vertex data", m_window);
 
     return UINT32_MAX;
 }
 
 VkResult Renderer::release_device_objects(void)
 {
-    vkDestroyDevice(this->device, nullptr);
-    vkDestroySurfaceKHR(this->instance, this->swapchain.surface, nullptr);
+    vkDestroyDevice(m_device, nullptr);
+    vkDestroySurfaceKHR(m_instance, m_swapchain.surface, nullptr);
 
     return VK_SUCCESS;
 }
@@ -929,50 +929,50 @@ VkResult Renderer::release_device_objects(void)
 VkResult Renderer::release_instance_objects(void)
 {
     this->release_debug();
-    vkDestroyInstance(this->instance, nullptr);
+    vkDestroyInstance(m_instance, nullptr);
 
     return VK_SUCCESS;
 }
 
 VkResult Renderer::release_render_objects(void)
 {
-    vkResetCommandPool(this->device, this->cmdpool,
+    vkResetCommandPool(m_device, m_cmdpool,
       VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 
-    for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
-        vkDestroyFramebuffer(this->device, this->fbuffers[i], nullptr);
+    for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
+        vkDestroyFramebuffer(m_device, m_fbuffers[i], nullptr);
     }
-    fbuffers.clear();
+    m_fbuffers.clear();
 
-    vkFreeMemory(this->device, this->vbuffermem, nullptr);
-    vkDestroyBuffer(this->device, this->vbuffer, nullptr);
+    vkFreeMemory(m_device, m_vbuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_vbuffer, nullptr);
 
-    vkDestroyPipeline(this->device, this->pipeline.gpipeline, nullptr);
-    vkDestroyPipelineLayout(this->device, this->pipeline.layout, nullptr);
-    vkDestroyRenderPass(this->device, this->pipeline.renderpass, nullptr);
-    vkDestroyShaderModule(this->device,
-      this->pipeline.vshadermodule, nullptr);
-    vkDestroyShaderModule(this->device,
-      this->pipeline.fshadermodule, nullptr);
-    for (uint32_t i = 0; i < this->swapchain.views.size(); i++) {
-        vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
+    vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipeline.layout, nullptr);
+    vkDestroyRenderPass(m_device, m_pipeline.renderpass, nullptr);
+    vkDestroyShaderModule(m_device,
+      m_pipeline.vshadermodule, nullptr);
+    vkDestroyShaderModule(m_device,
+      m_pipeline.fshadermodule, nullptr);
+    for (uint32_t i = 0; i < m_swapchain.views.size(); i++) {
+        vkDestroyImageView(m_device, m_swapchain.views[i], nullptr);
     }
-    this->swapchain.views.clear();
+    m_swapchain.views.clear();
 
-    vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
-    vkFreeCommandBuffers(this->device, this->cmdpool,
-      this->cbuffers.size(), this->cbuffers.data());
-    this->cbuffers.clear();
-    vkDestroyCommandPool(this->device, this->cmdpool, nullptr);
+    vkDestroySwapchainKHR(m_device, m_swapchain.chain, nullptr);
+    vkFreeCommandBuffers(m_device, m_cmdpool,
+      m_cmdbuffers.size(), m_cmdbuffers.data());
+    m_cmdbuffers.clear();
+    vkDestroyCommandPool(m_device, m_cmdpool, nullptr);
 
     return VK_SUCCESS;
 }
 
 VkResult Renderer::release_sync_objects(void)
 {
-    vkDestroyFence(this->device, this->fence, nullptr);
-    vkDestroySemaphore(this->device, this->swapchain.semready, nullptr);
-    vkDestroySemaphore(this->device, this->swapchain.semfinished, nullptr);
+    vkDestroyFence(m_device, m_fence, nullptr);
+    vkDestroySemaphore(m_device, m_swapchain.semready, nullptr);
+    vkDestroySemaphore(m_device, m_swapchain.semfinished, nullptr);
 
     return VK_SUCCESS;
 }

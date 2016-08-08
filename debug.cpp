@@ -22,7 +22,7 @@ VkResult Renderer::init_debug(void)
 #ifdef VKTEST_DEBUG
     VkResult result = VK_SUCCESS;
 
-    VkInstance temp = this->instance;
+    VkInstance temp = m_instance;
     pfnCreateDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)
       vkGetInstanceProcAddr(temp, "vkCreateDebugReportCallbackEXT");
     pfnDestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)
@@ -41,17 +41,17 @@ VkResult Renderer::init_debug(void)
     cci.pfnCallback = &VkTestDebugReportCallback;
     cci.pUserData = this;
 
-    result = pfnCreateDebugReportCallback(this->instance, &cci, nullptr,
-      &this->callback);
+    result = pfnCreateDebugReportCallback(m_instance, &cci, nullptr,
+      &this->m_callback);
 
-    log.open("log.txt", std::fstream::out);
-    if (!log.is_open()) {
-        Assert(VK_INCOMPLETE, "Failed to open log file.");
+    m_log.open("log.txt", std::fstream::out);
+    if (!m_log.is_open()) {
+        Assert(VK_INCOMPLETE, "Failed to open m_log file.");
     }
 
     std::stringstream out;
     out << "Log opened at " << SDL_GetTicks() << "ms." << std::endl;
-    log << out.str();
+    m_log << out.str();
 
     return result;
 #else
@@ -64,10 +64,10 @@ VkResult Renderer::release_debug(void)
 #ifdef VKTEST_DEBUG
     std::stringstream out;
     out << "Log closed at " << SDL_GetTicks() << "ms." << std::endl;
-    this->log << out.str();
-    this->log.close();
+    this->m_log << out.str();
+    this->m_log.close();
 
-    pfnDestroyDebugReportCallback(this->instance, this->callback, nullptr);
+    pfnDestroyDebugReportCallback(m_instance, this->m_callback, nullptr);
 
     return VK_SUCCESS;
 #else
@@ -79,7 +79,7 @@ VkResult Renderer::release_debug(void)
 #ifdef VKTEST_DEBUG
 std::fstream* Renderer::_get_log_file(void)
 {
-    return &this->log;
+    return &this->m_log;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VkTestDebugReportCallback(
@@ -121,7 +121,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VkTestDebugReportCallback(
         out << std::endl;
     }
 
-    /* Output everything to the log file. */
+    /* Output everything to the m_log file. */
     std::fstream* file = state->_get_log_file();
     if (file->is_open()) {
         *file << out.str().c_str();
