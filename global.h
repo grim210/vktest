@@ -3,9 +3,10 @@
 
 #include <array>
 #include <fstream>
-#include <vector>
+#include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #if defined(__linux__)
   #define VK_USE_PLATFORM_XCB_KHR
