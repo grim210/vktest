@@ -10,10 +10,10 @@ GLSLFLAGS=-V
 LD=g++
 LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf
-OBJS=	global.o \
+OBJS=	debug.o \
+	global.o \
 	main.o \
-	vkstate.o \
-	vkstate_debug.o
+	renderer.o
 
 # Shader compilation code
 SHADERS=\
@@ -30,17 +30,17 @@ test:
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
+debug.o: debug.cpp renderer.h
+	$(CXX) $(CXXFLAGS) debug.cpp -o debug.o
+
 global.o: global.cpp global.h
 	$(CXX) $(CXXFLAGS) global.cpp -o global.o
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
 
-vkstate.o: vkstate.cpp vkstate.h
-	$(CXX) $(CXXFLAGS) vkstate.cpp -o vkstate.o
-
-vkstate_debug.o: vkstate_debug.cpp vkstate.h
-	$(CXX) $(CXXFLAGS) vkstate_debug.cpp -o vkstate_debug.o
+renderer.o: renderer.cpp renderer.h
+	$(CXX) $(CXXFLAGS) renderer.cpp -o renderer.o
 
 ./shaders/test.vert.spv: ./shaders/src/test.vert
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv
