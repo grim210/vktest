@@ -4,13 +4,14 @@ VKSDK_INC=-I$(VKSDK)/include/
 VKSDK_LIB=-L$(VKSDK)/rbuild/loader/
 CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror \
-	-DVKTEST_VSYNC -DVKTEST_DEBUG $(VKSDK_INC)
+	-DVKTEST_DEBUG $(VKSDK_INC)
 GLSL=../Vulkan-LoaderAndValidationLayers/external/glslang/build/StandAlone/glslangValidator
 GLSLFLAGS=-V
 LD=g++
 LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf
-OBJS=	main.o \
+OBJS=	global.o \
+	main.o \
 	vkstate.o \
 	vkstate_debug.o
 
@@ -28,6 +29,9 @@ test:
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+global.o: global.cpp global.h
+	$(CXX) $(CXXFLAGS) global.cpp -o global.o
 
 main.o: main.cpp
 	$(CXX) $(CXXFLAGS) main.cpp -o main.o
