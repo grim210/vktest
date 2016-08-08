@@ -3,6 +3,7 @@
 #include <SDL2/SDL.h>
 #include "global.h"
 #include "renderer.h"
+#include "timer.h"
 
 int main(int argc, char* argv[])
 {
@@ -21,8 +22,9 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
+    Timer t;
+    double fstart = t.Elapsed();
     int framecount = 0;
-    uint32_t start = SDL_GetTicks();
 
     bool done = false;
     while (!done) {
@@ -36,14 +38,16 @@ int main(int argc, char* argv[])
             }
         }
 
-        rend->Update(0.0);
+        double current = t.Elapsed();
+
+        rend->Update(current);
         rend->Render();
 
         framecount++;
-        if (SDL_GetTicks() - start >= 1000) {
+        if (t.Elapsed() - fstart >= 1.0) {
             std::cout << "FPS: " << framecount << std::endl;
             framecount = 0;
-            start = SDL_GetTicks();
+            fstart = t.Elapsed();
         }
     }
 

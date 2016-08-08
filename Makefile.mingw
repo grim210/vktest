@@ -3,7 +3,7 @@ VKSDK=/c/VulkanSDK/1.0.21.0
 VKINC=$(VKSDK)/Include/
 VKLIB=$(VKSDK)/Bin32/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC)
+CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
 GLSL=$(VKSDK)/Bin32/glslangValidator
 GLSLFLAGS=-V
 LD=g++
@@ -12,7 +12,8 @@ RM=rm -rf
 OBJS=	debug.o \
 	global.o \
 	main.o \
-	renderer.o
+	renderer.o \
+	timer.o
 
 SHADERS=\
 	./shaders/test.vert.spv \
@@ -45,6 +46,8 @@ global.o: global.cpp global.h
 renderer.o: renderer.cpp renderer.h
 	$(CXX) $(CXXFLAGS) renderer.cpp -o renderer.o
 
+timer.o: timer.cpp timer.h
+	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
 
 ./shaders/test.vert.spv: ./shaders/src/test.vert
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv
