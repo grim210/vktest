@@ -94,6 +94,7 @@ private:
     VkBuffer m_vbuffer;
     VkDeviceMemory m_vbuffermem;
 
+    /* Only initialization functions */
     VkResult create_cmdpool(void);
     VkResult create_cmdbuffers(void);
     VkResult create_vertexbuffer(void);
@@ -105,10 +106,12 @@ private:
     VkResult create_surface(void);
     VkResult create_swapchain(void);
 
-    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
+    /* private helper functions */
+    VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
     VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
       VkMemoryPropertyFlags properties, VkBuffer* buffer,
       VkDeviceMemory* buffer_memory);
+    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
 
     VkResult release_device_objects(void);
     VkResult release_instance_objects(void);

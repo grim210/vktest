@@ -182,6 +182,43 @@ void Renderer::Update(double elapsed)
     }
 }
 
+VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
+{
+    VkCommandBufferAllocateInfo cbai = {};
+    cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbai.commandPool = m_cmdpool;
+    cbai.commandBufferCount = 1;
+
+    VkCommandBuffer cbuff;
+    vkAllocateCommandBuffers(m_device, &cbai, &cbuff);
+
+    VkCommandBufferBeginInfo cbbi = {};
+    cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cbuff, &cbbi);
+
+    VkBufferCopy copyregion = {};
+    copyregion.srcOffset = 0;
+    copyregion.dstOffset = 0;
+    copyregion.size = size;
+    vkCmdCopyBuffer(cbuff, src, dst, 1, &copyregion);
+
+    vkEndCommandBuffer(cbuff);
+
+    VkSubmitInfo submitinfo = {};
+    submitinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitinfo.commandBufferCount = 1;
+    submitinfo.pCommandBuffers = &cbuff;
+
+    vkQueueSubmit(m_queues[0], 1, &submitinfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_queues[0]);
+
+    vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
+
+    return VK_SUCCESS;
+}
+
 VkResult Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
   VkMemoryPropertyFlags properties, VkBuffer* buffer,
   VkDeviceMemory* buffer_memory)
@@ -287,16 +324,38 @@ VkResult Renderer::create_cmdpool(void)
 VkResult Renderer::create_vertexbuffer(void)
 {
     VkResult result = VK_SUCCESS;
-
     VkDeviceSize buffersize = (sizeof(m_vertices[0]) * m_vertices.size());
-    result = create_buffer(buffersize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &m_vbuffer, &m_vbuffermem);
 
-    void* data;
-    vkMapMemory(m_device, m_vbuffermem, 0, buffersize, 0, &data);
+    VkBuffer stagingbuffer;
+    VkDeviceMemory stagingbuffermemory;
+
+    result = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingbuffer,
+      &stagingbuffermemory);
+    if (result) {
+        return result;
+    }
+
+    void* data = nullptr;
+    vkMapMemory(m_device, stagingbuffermemory, 0, buffersize, 0, &data);
     std::memcpy(data, m_vertices.data(), (size_t)buffersize);
-    vkUnmapMemory(m_device, m_vbuffermem);
+    vkUnmapMemory(m_device, stagingbuffermemory);
+
+    result = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      &m_vbuffer, &m_vbuffermem);
+    if (result) {
+        return result;
+    }
+
+    result = copy_buffer(stagingbuffer, m_vbuffer, buffersize);
+    if (result) {
+        return result;
+    }
+
+    vkFreeMemory(m_device, stagingbuffermemory, nullptr);
+    vkDestroyBuffer(m_device, stagingbuffer, nullptr);
 
     return result;
 }
