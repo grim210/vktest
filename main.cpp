@@ -2,28 +2,18 @@
 
 #include <SDL2/SDL.h>
 #include "vkstate.h"
-#include "vkwindow.h"
 
 int main(int argc, char* argv[])
 {
     VkState* state = nullptr;
-    VkWindow* window = nullptr;
 
     SDL_Init(SDL_INIT_EVERYTHING);
 
-    struct VkWindow::CreateInfo ci = {};
-    ci.width = 800;
-    ci.height = 600;
-    ci.title = "VkTest";
-    ci.flags = VkWindow::VKWINDOW_RESIZABLE;
+    SDL_Window* window = SDL_CreateWindow("VkTest Window",
+      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600,
+      SDL_WINDOW_RESIZABLE);
 
-    window = VkWindow::Init(&ci);
-    if (!window) {
-        std::cerr << "Failed to create window." << std::endl;
-        return -1;
-    }
-
-    state = VkState::Init(window->GetHandle());
+    state = VkState::Init(window);
     if (!state) {
         std::cerr << "Failed to initialize Vulkan library." << std::endl;
         exit(-1);
@@ -55,9 +45,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    VkWindow::Release(window);
     VkState::Release(state);
 
+    SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
 }

@@ -1,47 +1,5 @@
 #include "vkstate.h"
 
-struct Vertex {
-    glm::vec2 pos;
-    glm::vec3 color;
-
-    static VkVertexInputBindingDescription getBindDesc(void)
-    {
-        VkVertexInputBindingDescription desc = {};
-        desc.binding = 0;
-        desc.stride = sizeof(Vertex);
-        desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return desc;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 2> getAttrDesc(void)
-    {
-        std::array<VkVertexInputAttributeDescription, 2> descs = {};
-
-        /* must be the position attribute description. */
-        descs[0].binding = 0;
-        descs[0].location = 0;
-        descs[0].format = VK_FORMAT_R32G32_SFLOAT;
-        descs[0].offset = offsetof(Vertex, pos);
-
-        /* and the color attribute descritpion */
-        descs[1].binding = 0;
-        descs[1].location = 1;
-        descs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        descs[1].offset = offsetof(Vertex, color);
-
-        return descs;
-    }
-};
-
-const std::vector<Vertex> vertices = {
-    {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
-};
-
-static std::vector<char> _read_file(VkState* state, std::string path);
-
 VkState* VkState::Init(SDL_Window* win)
 {
     if (!win) {
@@ -55,37 +13,47 @@ VkState* VkState::Init(SDL_Window* win)
     VkResult result = VK_SUCCESS;
 
     result = ret->create_instance();
-    ret->_assert(result, "Failed to create Vulkan instance.  Do you have a "
-      "compatible system with up-to-date drivers?");
+    Assert(result, "Failed to create Vulkan instance.  Do you have a "
+      "compatible system with up-to-date drivers?", win);
 
     result = ret->init_debug();
-    ret->_assert(result, "Failed to initialize the debug extension.");
+    Assert(result, "Failed to initialize the debug extension.", win);
 
     result = ret->create_device();
-    ret->_assert(result, "Failed to create a rendering device.  Do you have "
-      "up-to-date drivers?");
+    Assert(result, "Failed to create a rendering device.  Do you have "
+      "up-to-date drivers?", win);
 
     result = ret->create_swapchain();
-    ret->_assert(result, "Unable to create Swapchain.");
+    Assert(result, "Unable to create Swapchain.", win);
 
     result = ret->create_renderpass();
-    ret->_assert(result, "Unable to create Renderpass object.");
+    Assert(result, "Unable to create Renderpass object.", win);
 
     result = ret->create_pipeline();
-    ret->_assert(result, "Unable to create graphics pipeline.");
+    Assert(result, "Unable to create graphics pipeline.", win);
 
     result = ret->create_framebuffers();
-    ret->_assert(result, "Unable to create framebuffer objects.");
+    Assert(result, "Unable to create framebuffer objects.", win);
 
     result = ret->create_buffers();
-    ret->_assert(result, "Unable to create command buffers.");
+    Assert(result, "Unable to create command buffers.", win);
 
     VkFenceCreateInfo fci = {};
     fci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fci.pNext = nullptr;
     fci.flags = 0;
     result = vkCreateFence(ret->device, &fci, nullptr, &ret->fence);
-    ret->_assert(result, "Unable to create fence.");
+    Assert(result, "Unable to create fence.", win);
+
+    VkSemaphoreCreateInfo semci = {};
+    semci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    result = vkCreateSemaphore(ret->device, &semci, nullptr,
+      &ret->swapchain.semready);
+    Assert(result, "vkCreateSemaphore: swapchain.semready", win);
+
+    result = vkCreateSemaphore(ret->device, &semci, nullptr,
+      &ret->swapchain.semfinished);
+    Assert(result, "vkCreateSemaphore: swapchain.semfinished", win);
 
     ret->firstpass = true;
 
@@ -134,7 +102,7 @@ void VkState::Render(void)
         if (this->firstpass) {
             this->firstpass = false;
         } else {
-            this->_info("Framerate is _really_ low..");
+            Info("Framerate is _really_ low..");
         }
     }
 
@@ -160,7 +128,7 @@ void VkState::Render(void)
     si.pSignalSemaphores = sigsems;
 
     result = vkQueueSubmit(this->queues[0], 1, &si, this->fence);
-    this->_assert(result, "vkQueueSubmit");
+    Assert(result, "vkQueueSubmit", this->window);
 
     VkSwapchainKHR swapchains[] = { this->swapchain.chain };
 
@@ -206,7 +174,7 @@ VkResult VkState::create_buffers(void)
     cpci.queueFamilyIndex = this->gpu.qidx;
     result = vkCreateCommandPool(this->device, &cpci, nullptr,
       &this->cmdpool);
-    this->_assert(result, "vkCreateCommandPool");
+    Assert(result, "vkCreateCommandPool", this->window);
 
     /* Vertex buffer creation */
     VkBufferCreateInfo bci = {};
@@ -216,7 +184,7 @@ VkResult VkState::create_buffers(void)
     bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     result = vkCreateBuffer(this->device, &bci, nullptr, &this->vbuffer);
-    this->_assert(result, "vkCreateBuffer: vertex buffer");
+    Assert(result, "vkCreateBuffer: vertex buffer");
 
     /*
     * After the buffer is created, we must allocate memory for it.  Determine
@@ -234,7 +202,7 @@ VkResult VkState::create_buffers(void)
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     result = vkAllocateMemory(this->device, &mai, nullptr, &this->vbuffermem);
-    this->_assert(result, "vkAllocateMemory: vertex buffer memory.");
+    Assert(result, "vkAllocateMemory: vertex buffer memory.", this->window);
 
     vkBindBufferMemory(this->device, this->vbuffer, this->vbuffermem, 0);
 
@@ -254,7 +222,7 @@ VkResult VkState::create_buffers(void)
     this->cbuffers.resize(this->fbuffers.size());
     result = vkAllocateCommandBuffers(this->device, &cbai,
       this->cbuffers.data());
-    this->_assert(result, "vkAllocateCommandBuffers");
+    Assert(result, "vkAllocateCommandBuffers", this->window);
 
     /* I'm not sure what this is...will figure out. */
     for (uint32_t i = 0; i < this->cbuffers.size(); i++) {
@@ -290,7 +258,7 @@ VkResult VkState::create_buffers(void)
         vkCmdEndRenderPass(this->cbuffers[i]);
 
         result = vkEndCommandBuffer(this->cbuffers[i]);
-        this->_assert(result, "vkEndCommandBuffer");
+        Assert(result, "vkEndCommandBuffer", this->window);
     }
 
     return VK_SUCCESS;
@@ -310,7 +278,7 @@ VkResult VkState::create_device(void)
     SDL_SysWMinfo info = {};
     SDL_VERSION(&info.version);
     if (SDL_GetWindowWMInfo(this->window, &info) != SDL_TRUE) {
-        this->_assert(VK_INCOMPLETE, SDL_GetError());
+        Assert(VK_INCOMPLETE, SDL_GetError(), this->window);
     }
 
 #ifdef __linux__
@@ -322,7 +290,7 @@ VkResult VkState::create_device(void)
     si.window = info.info.x11.window;
     result = vkCreateXcbSurfaceKHR(this->instance, &si, nullptr,
       &this->swapchain.surface);
-    this->_assert(result, "vkCreateXcbSurfaceKHR");
+    Assert(result, "vkCreateXcbSurfaceKHR", this->window);
 #elif _WIN32
     VkWin32SurfaceCreateInfoKHR si = {};
     si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -332,10 +300,10 @@ VkResult VkState::create_device(void)
     si.hwnd = info.info.win.window;
     result = vkCreateWin32SurfaceKHR(this->instance, &si, nullptr,
       &this->swapchain.surface);
-    this->_assert(result, "vkCreateWin32SurfaceKHR");
+    Assert(result, "vkCreateWin32SurfaceKHR", this->window);
 #else
-    this->_assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
-      "VkSurfaceKHR creation.");
+    Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
+      "VkSurfaceKHR creation.", this->window);
 #endif
 
     /*
@@ -387,7 +355,8 @@ VkResult VkState::create_device(void)
                 VkBool32 support = VK_FALSE;
                 VkResult tr = vkGetPhysicalDeviceSurfaceSupportKHR(
                   target_device, j, this->swapchain.surface, &support);
-                this->_assert(tr, "vkGetPhysicalDeviceSurfaceSupportKHR");
+                Assert(tr, "vkGetPhysicalDeviceSurfaceSupportKHR",
+                  this->window);
 
                 /* Notice that we're saving both the physical device and the
                  * queue index that supports presenting and rendering. */
@@ -516,7 +485,7 @@ VkResult VkState::create_framebuffers(void)
 
         result = vkCreateFramebuffer(this->device, &fci, nullptr,
           &this->fbuffers[i]);
-        this->_assert(result, "vkCreateFramebuffer");
+        Assert(result, "vkCreateFramebuffer", this->window);
     }
 
     return result;
@@ -568,8 +537,8 @@ VkResult VkState::create_pipeline(void)
 {
     VkResult result = VK_SUCCESS;
 
-    std::vector<char> vshader = _read_file(this, "./shaders/test.vert.spv");
-    std::vector<char> fshader = _read_file(this, "./shaders/test.frag.spv");
+    std::vector<char> vshader = ReadFile("./shaders/test.vert.spv");
+    std::vector<char> fshader = ReadFile("./shaders/test.frag.spv");
 
     VkShaderModuleCreateInfo smci = {};
     smci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -577,13 +546,13 @@ VkResult VkState::create_pipeline(void)
     smci.pCode = (const uint32_t*)vshader.data();
     result = vkCreateShaderModule(this->device, &smci, nullptr,
       &this->pipeline.vshadermodule);
-    this->_assert(result, "vkCreateShaderModule: vertex shader.");
+    Assert(result, "vkCreateShaderModule: vertex shader.", this->window);
 
     smci.codeSize = fshader.size();
     smci.pCode = (const uint32_t*)fshader.data();
     result = vkCreateShaderModule(this->device, &smci, nullptr,
       &this->pipeline.fshadermodule);
-    this->_assert(result, "vkCreateShaderModule: fragment shader.");
+    Assert(result, "vkCreateShaderModule: fragment shader.", this->window);
 
     VkPipelineShaderStageCreateInfo vssi = {};
     vssi.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -693,7 +662,7 @@ VkResult VkState::create_pipeline(void)
 
     result = vkCreatePipelineLayout(this->device, &plci, nullptr,
       &this->pipeline.layout);
-    this->_assert(result, "vkCreatePipelineLayout");
+    Assert(result, "vkCreatePipelineLayout", this->window);
 
     VkGraphicsPipelineCreateInfo pci = {};
     pci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -715,7 +684,7 @@ VkResult VkState::create_pipeline(void)
 
     result = vkCreateGraphicsPipelines(this->device, VK_NULL_HANDLE, 1,
       &pci, nullptr, &this->pipeline.gpipeline);
-    this->_assert(result, "vkCreateGraphicsPipelines");
+    Assert(result, "vkCreateGraphicsPipelines", this->window);
 
     return result;
 }
@@ -752,7 +721,7 @@ VkResult VkState::create_renderpass(void)
 
     result = vkCreateRenderPass(this->device, &rpci, nullptr,
       &this->pipeline.renderpass);
-    this->_assert(result, "vkCreateRenderPass");
+    Assert(result, "vkCreateRenderPass", this->window);
 
     return result;
 }
@@ -776,12 +745,12 @@ VkResult VkState::create_swapchain(void)
     std::vector<VkSurfaceFormatKHR> surface_formats;
     result = vkGetPhysicalDeviceSurfaceFormatsKHR(this->gpu.device,
       this->swapchain.surface, &count, nullptr);
-    this->_assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR");
+    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", this->window);
 
     surface_formats.resize(count);
     result = vkGetPhysicalDeviceSurfaceFormatsKHR(this->gpu.device,
       this->swapchain.surface, &count, surface_formats.data());
-    this->_assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR");
+    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", this->window);
 
     /* There appears to be only one color space, but I'll grab it from
      * the surface formats just to be safe. */
@@ -856,22 +825,6 @@ VkResult VkState::create_swapchain(void)
 #endif
     }
 
-#ifdef VKTEST_DEBUG
-    switch (this->swapchain.mode) {
-    case VK_PRESENT_MODE_IMMEDIATE_KHR:
-        std::cerr << "Immediate Mode" << std::endl;
-        break;
-    case VK_PRESENT_MODE_FIFO_KHR:
-        std::cerr << "FIFO" << std::endl;
-        break;
-    case VK_PRESENT_MODE_MAILBOX_KHR:
-        std::cerr << "Mailbox" << std::endl;
-        break;
-    default:
-        std::cerr << "Some other mode.." << std::endl;
-    }
-#endif
-
     VkSwapchainCreateInfoKHR sci = {};
     sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     sci.pNext = VK_NULL_HANDLE;
@@ -894,17 +847,17 @@ VkResult VkState::create_swapchain(void)
 
     result = vkCreateSwapchainKHR(this->device, &sci, NULL,
       &this->swapchain.chain);
-    this->_assert(result, "vkCreateSwapchainKHR");
+    Assert(result, "vkCreateSwapchainKHR", this->window);
 
     count = 0;
     result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
       &count, nullptr);
-    this->_assert(result, "vkGetSwapchainImagesKHR");
+    Assert(result, "vkGetSwapchainImagesKHR", this->window);
 
     this->swapchain.images.resize(count);
     result = vkGetSwapchainImagesKHR(this->device, this->swapchain.chain,
       &count, this->swapchain.images.data());
-    this->_assert(result, "vkGetSwapchainImagesKHR");
+    Assert(result, "vkGetSwapchainImagesKHR", this->window);
 
     this->swapchain.views.resize(count);
     for (uint32_t i = 0; i < count; i++) {
@@ -925,19 +878,8 @@ VkResult VkState::create_swapchain(void)
 
         result = vkCreateImageView(this->device, &ivci, nullptr,
           &this->swapchain.views[i]);
-        this->_assert(result, "vkCreateImageView");
+        Assert(result, "vkCreateImageView", this->window);
     }
-
-    VkSemaphoreCreateInfo semci = {};
-    semci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    result = vkCreateSemaphore(this->device, &semci, nullptr,
-      &this->swapchain.semready);
-    this->_assert(result, "vkCreateSemaphore: semready");
-
-    result = vkCreateSemaphore(this->device, &semci, nullptr,
-      &this->swapchain.semfinished);
-    this->_assert(result, "vkCreateSemaphore: semfinished");
 
     return result;
 }
@@ -954,8 +896,8 @@ uint32_t VkState::find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags)
         }
     }
 
-    this->_assert(VK_ERROR_INCOMPATIBLE_DRIVER,
-      "Failed to find suitable GPU memory for vertex data");
+    Assert(VK_ERROR_INCOMPATIBLE_DRIVER,
+      "Failed to find suitable GPU memory for vertex data", this->window);
 
     return UINT32_MAX;
 }
@@ -1014,29 +956,5 @@ VkResult VkState::release_sync_objects(void)
     vkDestroySemaphore(this->device, this->swapchain.semfinished, nullptr);
 
     return VK_SUCCESS;
-}
-
-std::vector<char> _read_file(VkState* state, std::string path)
-{
-    std::fstream in;
-    std::vector<char> ret;
-
-    in.open(path, std::fstream::binary | std::fstream::in);
-    if (!in.is_open()) {
-        std::stringstream out;
-        out << "Unable to open file \'" << path << "\'" << std::endl;
-        state->_assert(VK_INCOMPLETE, out.str());
-        return ret;
-    }
-
-    uint32_t len = 0;
-    in.seekg(0L, in.end);
-    len = in.tellg();
-    in.seekg(0L, in.beg);
-
-    ret.resize(len);
-    in.read(ret.data(), len);
-
-    return ret;
 }
 

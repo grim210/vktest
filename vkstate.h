@@ -18,11 +18,13 @@
   #define WIN32_LEAN_AND_MEAN
   #include <windows.h>
 #endif
+#include <vulkan/vulkan.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
-#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+
+#include "global.h"
 
 class VkState {
 public:
@@ -33,9 +35,6 @@ public:
     void Render(void);
     void Update(double elapsed);
 
-    /* These are public, but only function in the debug builds. */
-    void _assert(VkResult, std::string message);
-    void _info(std::string message);
 private:
     SDL_Window* window;
     std::queue<SDL_WindowEvent> events;
