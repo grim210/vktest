@@ -12,6 +12,13 @@ Renderer* Renderer::Init(SDL_Window* win)
 
     VkResult result = VK_SUCCESS;
 
+    /* Get our dummy data going */
+    ret->vertices = {
+        {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+    };
+
     result = ret->create_instance();
     Assert(result, "Failed to create Vulkan instance.  Do you have a "
       "compatible system with up-to-date drivers?", win);

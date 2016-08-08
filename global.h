@@ -47,12 +47,6 @@ struct Vertex {
     }
 };
 
-const std::vector<Vertex> vertices = {
-    {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
-};
-
 void Assert(VkResult test, std::string message, SDL_Window* win = nullptr);
 void Info(std::string message, SDL_Window* win = nullptr);
 std::vector<char> ReadFile(std::string path);

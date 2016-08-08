@@ -83,6 +83,8 @@ private:
 
     VkCommandPool cmdpool;
     std::vector<VkCommandBuffer> cbuffers;
+
+    std::vector<Vertex> vertices;
     VkBuffer vbuffer;
     VkDeviceMemory vbuffermem;
 
