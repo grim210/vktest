@@ -23,11 +23,29 @@
 #include <SDL2/SDL_syswm.h>
 #include <glm/glm.hpp>
 
+#define RENDERER_DEFAULT_WIDTH      (800)
+#define RENDERER_DEFAULT_HEIGHT     (600)
+#define RENDERER_WINDOW_NAME        ("VkTest")
+
 #include "global.h"
 
 class Renderer {
 public:
-    static Renderer* Init(SDL_Window* win);
+    enum Flags {
+        NONE       = 0x00,
+        FULLSCREEN = 0x01,
+        RESIZABLE  = 0x02,
+        VSYNC_0N   = 0x04,
+        _RANGE     = 0x08
+    };
+
+    struct CreateInfo {
+        uint16_t width, height;
+        Flags flags;
+        int dlevel;
+    };
+
+    static Renderer* Init(CreateInfo* info);
     static void Release(Renderer* renderer);
     void PushEvent(SDL_WindowEvent event);
     void RecreateSwapchain(void);
@@ -37,6 +55,7 @@ public:
 private:
     SDL_Window* m_window;
     std::queue<SDL_WindowEvent> m_events;
+    CreateInfo m_cinfo;
 
     /*
     * While this feels very clunky, it lets me know if we're in the first
@@ -103,6 +122,7 @@ private:
     VkResult create_instance(void);
     VkResult create_pipeline(void);
     VkResult create_renderpass(void);
+    VkResult create_semaphores(void);
     VkResult create_surface(void);
     VkResult create_swapchain(void);
 
@@ -111,6 +131,7 @@ private:
     VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
       VkMemoryPropertyFlags properties, VkBuffer* buffer,
       VkDeviceMemory* buffer_memory);
+    SDL_Window* create_window(void);
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
 
     VkResult release_device_objects(void);

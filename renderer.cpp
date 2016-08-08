@@ -1,23 +1,28 @@
 #include "renderer.h"
 
-Renderer* Renderer::Init(SDL_Window* win)
+Renderer* Renderer::Init(CreateInfo* info)
 {
-    if (!win) {
+    VkResult result = VK_SUCCESS;
+
+    /* Check to see if the video subsystem was initialized before proceeding. */
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         return nullptr;
     }
 
     Renderer* ret = new Renderer();
-    ret->m_window = win;
-    ret->m_gpu.qidx = UINT32_MAX;
+    //ret->m_gpu.qidx = UINT32_MAX;
 
-    VkResult result = VK_SUCCESS;
+    /* If we don't receive anything in the parameter,
+     * just fill with safe default values */
+    if (info == nullptr) {
+        ret->m_cinfo.width = RENDERER_DEFAULT_WIDTH;
+        ret->m_cinfo.height = RENDERER_DEFAULT_HEIGHT;
+        ret->m_cinfo.flags = Renderer::RESIZABLE;
+    } else {
+        memcpy(&ret->m_cinfo, info, sizeof(CreateInfo));
+    }
 
-    /* Get our dummy data going */
-    ret->m_vertices = {
-        {{ 0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}},
-        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
-        {{-0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}}
-    };
+    ret->m_window = ret->create_window();
 
     result = ret->create_instance();
     Assert(result, "Failed to create Vulkan instance.  Do you have a "
@@ -86,6 +91,7 @@ void Renderer::Release(Renderer* state)
     state->release_device_objects();
     state->release_instance_objects();
 
+    SDL_DestroyWindow(state->m_window);
     delete(state);
 }
 
@@ -324,6 +330,13 @@ VkResult Renderer::create_cmdpool(void)
 VkResult Renderer::create_vertexbuffer(void)
 {
     VkResult result = VK_SUCCESS;
+
+    m_vertices = {
+       {{ 0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}},
+       {{ 0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
+       {{-0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}}
+    };
+
     VkDeviceSize buffersize = (sizeof(m_vertices[0]) * m_vertices.size());
 
     VkBuffer stagingbuffer;
@@ -358,6 +371,41 @@ VkResult Renderer::create_vertexbuffer(void)
     vkDestroyBuffer(m_device, stagingbuffer, nullptr);
 
     return result;
+}
+
+SDL_Window* Renderer::create_window(void)
+{
+    /* Check for sane defaults first. */
+    if (m_cinfo.width == UINT16_MAX || m_cinfo.width == 0) {
+        m_cinfo.width = 800;
+    }
+
+    if (m_cinfo.height == UINT16_MAX || m_cinfo.height == 0) {
+        m_cinfo.height = 600;
+    }
+
+    if (m_cinfo.flags >= Renderer::_RANGE) {
+        m_cinfo.flags = Renderer::NONE;
+    }
+
+    uint32_t window_flags = 0;
+    if (m_cinfo.flags & Renderer::FULLSCREEN) {
+        window_flags |= SDL_WINDOW_FULLSCREEN;
+    }
+
+    if (m_cinfo.flags & Renderer::RESIZABLE) {
+        window_flags |= SDL_WINDOW_RESIZABLE;
+    }
+
+    SDL_Window* ret = SDL_CreateWindow(RENDERER_WINDOW_NAME,
+      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+      static_cast<int>(m_cinfo.width), static_cast<int>(m_cinfo.height),
+      window_flags);
+    if (ret == nullptr) {
+        Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Failed to create SDL_Window.");
+    }
+
+    return ret;
 }
 
 VkResult Renderer::create_device(void)

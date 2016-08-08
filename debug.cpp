@@ -32,14 +32,29 @@ VkResult Renderer::init_debug(void)
 
     VkDebugReportCallbackCreateInfoEXT cci = {};
     cci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
-    cci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT |
-                VK_DEBUG_REPORT_WARNING_BIT_EXT |
-                VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT |
-                // these last two are *very* chatty.
-                VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
-                VK_DEBUG_REPORT_DEBUG_BIT_EXT;
     cci.pfnCallback = &VkTestDebugReportCallback;
     cci.pUserData = this;
+
+    /*
+    * In order to quiten the logs down some, the debug level, when debug
+    * mode is on, can be tuned by the c_info struct when the renderer
+    * is initialized.  Not defining VKTEST_DEBUG will cause this variable
+    * to be quietly ignored.
+    */
+    cci.flags = 0;
+    switch (m_cinfo.dlevel) {
+    case 4:
+        cci.flags |= VK_DEBUG_REPORT_INFORMATION_BIT_EXT;
+    case 3:
+        cci.flags |= VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+    case 2:
+        cci.flags |= VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+    case 1:
+        cci.flags |= VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    case 0:
+    default:
+        cci.flags |= VK_DEBUG_REPORT_ERROR_BIT_EXT;
+    }
 
     result = pfnCreateDebugReportCallback(m_instance, &cci, nullptr,
       &this->m_callback);

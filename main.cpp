@@ -10,11 +10,12 @@ int main(int argc, char* argv[])
 
     SDL_Init(SDL_INIT_EVERYTHING);
 
-    SDL_Window* window = SDL_CreateWindow("VkTest Window",
-      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600,
-      SDL_WINDOW_RESIZABLE);
+    struct Renderer::CreateInfo info = {};
+    info.width = 1024;
+    info.height = 768;
+    info.flags = Renderer::RESIZABLE;
 
-    rend = Renderer::Init(window);
+    rend = Renderer::Init(&info);
     if (!rend) {
         std::cerr << "Failed to initialize Vulkan library." << std::endl;
         exit(-1);
@@ -47,8 +48,6 @@ int main(int argc, char* argv[])
     }
 
     Renderer::Release(rend);
-
-    SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
 }
