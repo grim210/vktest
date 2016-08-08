@@ -48,7 +48,7 @@ Renderer* Renderer::Init(SDL_Window* win)
     result = ret->create_cmdpool();
     Assert(result, "Unable to create command pool", ret->m_window);
 
-    result = ret->create_buffers();
+    result = ret->create_vertexbuffer();
     Assert(result, "Unable to create vertex buffers.", ret->m_window);
 
     result = ret->create_cmdbuffers();
@@ -106,7 +106,7 @@ void Renderer::RecreateSwapchain(void)
     this->create_pipeline();
     this->create_framebuffers();
     this->create_cmdpool();
-    this->create_buffers();
+    this->create_vertexbuffer();
     this->create_cmdbuffers();
 
     vkDeviceWaitIdle(m_device);
@@ -284,47 +284,21 @@ VkResult Renderer::create_cmdpool(void)
     return vkCreateCommandPool(m_device, &cpci, nullptr, &m_cmdpool);
 }
 
-VkResult Renderer::create_buffers(void)
+VkResult Renderer::create_vertexbuffer(void)
 {
     VkResult result = VK_SUCCESS;
 
-    /* Vertex buffer creation */
-    VkBufferCreateInfo bci = {};
-    bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bci.flags = 0;
-    bci.size = (sizeof(m_vertices[0]) * m_vertices.size());
-    bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    result = vkCreateBuffer(m_device, &bci, nullptr, &m_vbuffer);
-    Assert(result, "vkCreateBuffer: vertex buffer");
-
-    /*
-    * After the buffer is created, we must allocate memory for it.  Determine
-    * the size, the required type of memory and then allocate.  After
-    * allocation it must be bound.  Then it must be mapped so that we can
-    * actually fill our buffer with vertex data.
-    */
-    VkMemoryRequirements memreq;
-    vkGetBufferMemoryRequirements(m_device, m_vbuffer, &memreq);
-
-    VkMemoryAllocateInfo mai = {};
-    mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    mai.allocationSize = memreq.size;
-    mai.memoryTypeIndex = this->find_memory_type(memreq.memoryTypeBits,
+    VkDeviceSize buffersize = (sizeof(m_vertices[0]) * m_vertices.size());
+    result = create_buffer(buffersize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    result = vkAllocateMemory(m_device, &mai, nullptr, &m_vbuffermem);
-    Assert(result, "vkAllocateMemory: vertex buffer memory.", m_window);
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &m_vbuffer, &m_vbuffermem);
 
-    vkBindBufferMemory(m_device, m_vbuffer, m_vbuffermem, 0);
-
-    /* bci.size is from when we created the original buffer...i had to look. */
     void* data;
-    vkMapMemory(m_device, m_vbuffermem, 0, bci.size, 0, &data);
-    std::memcpy(data, m_vertices.data(), (size_t)bci.size);
+    vkMapMemory(m_device, m_vbuffermem, 0, buffersize, 0, &data);
+    std::memcpy(data, m_vertices.data(), (size_t)buffersize);
     vkUnmapMemory(m_device, m_vbuffermem);
 
-    return VK_SUCCESS;
+    return result;
 }
 
 VkResult Renderer::create_device(void)

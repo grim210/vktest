@@ -96,7 +96,7 @@ private:
 
     VkResult create_cmdpool(void);
     VkResult create_cmdbuffers(void);
-    VkResult create_buffers(void);
+    VkResult create_vertexbuffer(void);
     VkResult create_device(void);
     VkResult create_framebuffers(void);
     VkResult create_instance(void);
