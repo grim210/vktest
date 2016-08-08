@@ -45,7 +45,13 @@ Renderer* Renderer::Init(SDL_Window* win)
     result = ret->create_framebuffers();
     Assert(result, "Unable to create framebuffer objects.", ret->m_window);
 
+    result = ret->create_cmdpool();
+    Assert(result, "Unable to create command pool", ret->m_window);
+
     result = ret->create_buffers();
+    Assert(result, "Unable to create vertex buffers.", ret->m_window);
+
+    result = ret->create_cmdbuffers();
     Assert(result, "Unable to create command buffers.", ret->m_window);
 
     VkFenceCreateInfo fci = {};
@@ -99,7 +105,9 @@ void Renderer::RecreateSwapchain(void)
     this->create_renderpass();
     this->create_pipeline();
     this->create_framebuffers();
+    this->create_cmdpool();
     this->create_buffers();
+    this->create_cmdbuffers();
 
     vkDeviceWaitIdle(m_device);
     m_firstpass = true;
@@ -174,55 +182,42 @@ void Renderer::Update(double elapsed)
     }
 }
 
-VkResult Renderer::create_buffers(void)
+VkResult Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
+  VkMemoryPropertyFlags properties, VkBuffer* buffer,
+  VkDeviceMemory* buffer_memory)
 {
     VkResult result = VK_SUCCESS;
 
-    /* Command pool creation */
-    VkCommandPoolCreateInfo cpci = {};
-    cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cpci.pNext = nullptr;
-    cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    cpci.queueFamilyIndex = m_gpu.qidx;
-    result = vkCreateCommandPool(m_device, &cpci, nullptr,
-      &m_cmdpool);
-    Assert(result, "vkCreateCommandPool", m_window);
-
-    /* Vertex buffer creation */
     VkBufferCreateInfo bci = {};
     bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bci.flags = 0;
-    bci.size = (sizeof(m_vertices[0]) * m_vertices.size());
-    bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bci.size = size;
+    bci.usage = usage;
     bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    result = vkCreateBuffer(m_device, &bci, nullptr, &m_vbuffer);
-    Assert(result, "vkCreateBuffer: vertex buffer");
 
-    /*
-    * After the buffer is created, we must allocate memory for it.  Determine
-    * the size, the required type of memory and then allocate.  After
-    * allocation it must be bound.  Then it must be mapped so that we can
-    * actually fill our buffer with vertex data.
-    */
+    result = vkCreateBuffer(m_device, &bci, nullptr, buffer);
+    if (result) {
+        return result;
+    }
+
     VkMemoryRequirements memreq;
-    vkGetBufferMemoryRequirements(m_device, m_vbuffer, &memreq);
+    vkGetBufferMemoryRequirements(m_device, *buffer, &memreq);
 
     VkMemoryAllocateInfo mai = {};
     mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     mai.allocationSize = memreq.size;
-    mai.memoryTypeIndex = this->find_memory_type(memreq.memoryTypeBits,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    result = vkAllocateMemory(m_device, &mai, nullptr, &m_vbuffermem);
-    Assert(result, "vkAllocateMemory: vertex buffer memory.", m_window);
+    mai.memoryTypeIndex = find_memory_type(memreq.memoryTypeBits, properties);
 
-    vkBindBufferMemory(m_device, m_vbuffer, m_vbuffermem, 0);
+    result = vkAllocateMemory(m_device, &mai, nullptr, buffer_memory);
+    if (result) {
+        return result;
+    }
 
-    /* bci.size is from when we created the original buffer...i had to look. */
-    void* data;
-    vkMapMemory(m_device, m_vbuffermem, 0, bci.size, 0, &data);
-    std::memcpy(data, m_vertices.data(), (size_t)bci.size);
-    vkUnmapMemory(m_device, m_vbuffermem);
+    return vkBindBufferMemory(m_device, *buffer, *buffer_memory, 0);
+}
+
+VkResult Renderer::create_cmdbuffers(void)
+{
+    VkResult result = VK_SUCCESS;
 
     /* Command buffer creation */
     VkCommandBufferAllocateInfo cbai = {};
@@ -272,6 +267,62 @@ VkResult Renderer::create_buffers(void)
         result = vkEndCommandBuffer(m_cmdbuffers[i]);
         Assert(result, "vkEndCommandBuffer", m_window);
     }
+
+    return VK_SUCCESS;
+
+}
+
+VkResult Renderer::create_cmdpool(void)
+{
+    /* Command pool creation */
+    VkCommandPoolCreateInfo cpci = {};
+    cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cpci.pNext = nullptr;
+    cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    cpci.queueFamilyIndex = m_gpu.qidx;
+
+    return vkCreateCommandPool(m_device, &cpci, nullptr, &m_cmdpool);
+}
+
+VkResult Renderer::create_buffers(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    /* Vertex buffer creation */
+    VkBufferCreateInfo bci = {};
+    bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bci.flags = 0;
+    bci.size = (sizeof(m_vertices[0]) * m_vertices.size());
+    bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    result = vkCreateBuffer(m_device, &bci, nullptr, &m_vbuffer);
+    Assert(result, "vkCreateBuffer: vertex buffer");
+
+    /*
+    * After the buffer is created, we must allocate memory for it.  Determine
+    * the size, the required type of memory and then allocate.  After
+    * allocation it must be bound.  Then it must be mapped so that we can
+    * actually fill our buffer with vertex data.
+    */
+    VkMemoryRequirements memreq;
+    vkGetBufferMemoryRequirements(m_device, m_vbuffer, &memreq);
+
+    VkMemoryAllocateInfo mai = {};
+    mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    mai.allocationSize = memreq.size;
+    mai.memoryTypeIndex = this->find_memory_type(memreq.memoryTypeBits,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    result = vkAllocateMemory(m_device, &mai, nullptr, &m_vbuffermem);
+    Assert(result, "vkAllocateMemory: vertex buffer memory.", m_window);
+
+    vkBindBufferMemory(m_device, m_vbuffer, m_vbuffermem, 0);
+
+    /* bci.size is from when we created the original buffer...i had to look. */
+    void* data;
+    vkMapMemory(m_device, m_vbuffermem, 0, bci.size, 0, &data);
+    std::memcpy(data, m_vertices.data(), (size_t)bci.size);
+    vkUnmapMemory(m_device, m_vbuffermem);
 
     return VK_SUCCESS;
 }
