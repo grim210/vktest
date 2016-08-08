@@ -90,6 +90,9 @@ void Renderer::RecreateSwapchain(void)
     this->create_pipeline();
     this->create_framebuffers();
     this->create_buffers();
+
+    vkDeviceWaitIdle(this->device);
+    this->firstpass = true;
 }
 
 void Renderer::Render(void)
@@ -154,7 +157,6 @@ void Renderer::Update(double elapsed)
         switch (ev.event) {
         case SDL_WINDOWEVENT_RESIZED:
             this->RecreateSwapchain();
-            std::cerr << "Recreated swapchain." << std::endl;
             break;
         }
 
@@ -786,12 +788,13 @@ VkResult Renderer::create_swapchain(void)
     * we hang compare that the what the device is telling us about the
     * actual surface.
     */
-    SDL_GetWindowSize(this->window, &this->width, &this->height);
+    int width, height;
+    SDL_GetWindowSize(this->window, &width, &height);
 
     /* Compare that to the surface capabilities structure. */
     if (sc.currentExtent.width == UINT32_MAX) {
-        this->swapchain.extent.width = static_cast<uint32_t>(this->width);
-        this->swapchain.extent.height = static_cast<uint32_t>(this->height);
+        this->swapchain.extent.width = static_cast<uint32_t>(width);
+        this->swapchain.extent.height = static_cast<uint32_t>(height);
     } else {
         this->swapchain.extent.width = sc.currentExtent.width;
         this->swapchain.extent.height = sc.currentExtent.height;
@@ -926,6 +929,7 @@ VkResult Renderer::release_render_objects(void)
     for (uint32_t i = 0; i < this->fbuffers.size(); i++) {
         vkDestroyFramebuffer(this->device, this->fbuffers[i], nullptr);
     }
+    fbuffers.clear();
 
     vkFreeMemory(this->device, this->vbuffermem, nullptr);
     vkDestroyBuffer(this->device, this->vbuffer, nullptr);
@@ -940,10 +944,12 @@ VkResult Renderer::release_render_objects(void)
     for (uint32_t i = 0; i < this->swapchain.views.size(); i++) {
         vkDestroyImageView(this->device, this->swapchain.views[i], nullptr);
     }
+    this->swapchain.views.clear();
 
     vkDestroySwapchainKHR(this->device, this->swapchain.chain, nullptr);
     vkFreeCommandBuffers(this->device, this->cmdpool,
       this->cbuffers.size(), this->cbuffers.data());
+    this->cbuffers.clear();
     vkDestroyCommandPool(this->device, this->cmdpool, nullptr);
 
     return VK_SUCCESS;

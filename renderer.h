@@ -38,7 +38,6 @@ public:
 private:
     SDL_Window* window;
     std::queue<SDL_WindowEvent> events;
-    int width, height;
     bool firstpass;
 
     VkInstance instance;
