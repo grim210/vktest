@@ -35,7 +35,7 @@ public:
         NONE       = 0x00,
         FULLSCREEN = 0x01,
         RESIZABLE  = 0x02,
-        VSYNC_0N   = 0x04,
+        VSYNC_ON   = 0x04,
         _RANGE     = 0x08
     };
 

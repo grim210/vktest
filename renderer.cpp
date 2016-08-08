@@ -959,18 +959,18 @@ VkResult Renderer::create_swapchain(void)
     vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.device,
       m_swapchain.surface, &count, present_modes.data());
 
+    VkPresentModeKHR want;
+    if (m_cinfo.flags & Renderer::VSYNC_ON) {
+        want = VK_PRESENT_MODE_MAILBOX_KHR;
+    } else {
+        want = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
     m_swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
     for (uint32_t i = 0; i < present_modes.size(); i++) {
-#ifdef VKTEST_VSYNC
-        if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-            m_swapchain.mode = present_modes[i];
+        if (present_modes[i] == want) {
+            m_swapchain.mode = want;
             break;
         }
-#else
-        if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-            m_swapchain.mode = present_modes[i];
-        }
-#endif
     }
 
     VkSwapchainCreateInfoKHR sci = {};
@@ -1107,5 +1107,11 @@ VkResult Renderer::release_sync_objects(void)
     vkDestroySemaphore(m_device, m_swapchain.semfinished, nullptr);
 
     return VK_SUCCESS;
+}
+
+inline Renderer::Flags operator|(Renderer::Flags a, Renderer::Flags b)
+{
+    return static_cast<Renderer::Flags>(static_cast<int>(a) |
+      static_cast<int>(b));
 }
 
