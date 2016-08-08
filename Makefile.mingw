@@ -3,7 +3,7 @@ VKSDK=/c/VulkanSDK/1.0.21.0
 VKINC=$(VKSDK)/Include/
 VKLIB=$(VKSDK)/Bin32/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
+CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC)
 GLSL=$(VKSDK)/Bin32/glslangValidator
 GLSLFLAGS=-V
 LD=g++
@@ -19,6 +19,16 @@ SHADERS=\
 	./shaders/test.frag.spv
 
 all: $(TARGET) $(SHADERS)
+
+zip: $(TARGET) $(SHADERS)
+	rm -rf vktest.zip ./vktest/
+	mkdir ./vktest/; mkdir ./vktest/shaders/; \
+	cp $(TARGET) ./vktest/; cp $(SHADERS) ./vktest/shaders; \
+	cp /c/msys32/mingw32/bin/SDL2.dll ./vktest/; \
+	cp /c/msys32/mingw32/bin/libgcc_s_dw2-1.dll ./vktest/; \
+	cp /c/msys32/mingw32/bin/libstdc++-6.dll ./vktest/; \
+	cp /c/msys32/mingw32/bin/libwinpthread-1.dll ./vktest/; \
+	zip -r vktest ./vktest/; rm -r ./vktest/
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
@@ -43,7 +53,7 @@ renderer.o: renderer.cpp renderer.h
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.frag -o ./shaders/test.frag.spv
 
 clean:
-	$(RM) $(OBJS) log.txt
+	$(RM) $(OBJS) log.txt 
 
 distclean:
-	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt
+	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt 
