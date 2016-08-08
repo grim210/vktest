@@ -94,6 +94,7 @@ private:
     VkResult create_instance(void);
     VkResult create_pipeline(void);
     VkResult create_renderpass(void);
+    VkResult create_surface(void);
     VkResult create_swapchain(void);
 
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);

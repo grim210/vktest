@@ -14,9 +14,9 @@ Renderer* Renderer::Init(SDL_Window* win)
 
     /* Get our dummy data going */
     ret->vertices = {
-        {{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+        {{ 0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}},
+        {{ 0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
+        {{-0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}}
     };
 
     result = ret->create_instance();
@@ -25,6 +25,9 @@ Renderer* Renderer::Init(SDL_Window* win)
 
     result = ret->init_debug();
     Assert(result, "Failed to initialize the debug extension.", win);
+
+    result = ret->create_surface();
+    Assert(result, "Unable to create VkSurfaceKHR", win);
 
     result = ret->create_device();
     Assert(result, "Failed to create a rendering device.  Do you have "
@@ -276,45 +279,6 @@ VkResult Renderer::create_buffers(void)
 VkResult Renderer::create_device(void)
 {
     VkResult result = VK_SUCCESS;
-
-    /*
-     * First, we have to create a VkSurfaceKHR, which is part of the WSI
-     * extension for Vulkan.  With a valid surface, you are able to query
-     * your physical devices to determine which device queue can actually
-     * present to the surface that's been created from your window.
-     */
-
-    SDL_SysWMinfo info = {};
-    SDL_VERSION(&info.version);
-    if (SDL_GetWindowWMInfo(this->window, &info) != SDL_TRUE) {
-        Assert(VK_INCOMPLETE, SDL_GetError(), this->window);
-    }
-
-#ifdef __linux__
-    VkXcbSurfaceCreateInfoKHR si = {};
-    si.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-    si.pNext = nullptr;
-    si.flags = 0;
-    si.connection = XGetXCBConnection(info.info.x11.display);
-    si.window = info.info.x11.window;
-    result = vkCreateXcbSurfaceKHR(this->instance, &si, nullptr,
-      &this->swapchain.surface);
-    Assert(result, "vkCreateXcbSurfaceKHR", this->window);
-#elif _WIN32
-    VkWin32SurfaceCreateInfoKHR si = {};
-    si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-    si.pNext = nullptr;
-    si.flags = 0;
-    si.hinstance = GetModuleHandle(NULL);
-    si.hwnd = info.info.win.window;
-    result = vkCreateWin32SurfaceKHR(this->instance, &si, nullptr,
-      &this->swapchain.surface);
-    Assert(result, "vkCreateWin32SurfaceKHR", this->window);
-#else
-    Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
-      "VkSurfaceKHR creation.", this->window);
-#endif
-
     /*
      * Next, we must get all the physical devices that are compatible with
      * Vulkan on the machine.  This is done by first getting the number of
@@ -519,14 +483,14 @@ VkResult Renderer::create_instance(void)
      */
     std::vector<const char*> extensions;
     extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-#ifdef __linux
+#if defined(__linux__)
     extensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#elif _WIN32
+#elif defined(_WIN32)
     extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 
     std::vector<const char*> layers;
-#ifdef VKTEST_DEBUG
+#if defined(VKTEST_DEBUG)
     layers.push_back("VK_LAYER_LUNARG_standard_validation");
     extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif
@@ -732,6 +696,48 @@ VkResult Renderer::create_renderpass(void)
       &this->pipeline.renderpass);
     Assert(result, "vkCreateRenderPass", this->window);
 
+    return result;
+}
+
+VkResult Renderer::create_surface(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    /*
+     * First, we have to create a VkSurfaceKHR, which is part of the WSI
+     * extension for Vulkan.  With a valid surface, you are able to query
+     * your physical devices to determine which device queue can actually
+     * present to the surface that's been created from your window.
+     */
+
+    SDL_SysWMinfo info = {};
+    SDL_VERSION(&info.version);
+    if (SDL_GetWindowWMInfo(this->window, &info) != SDL_TRUE) {
+        Assert(VK_INCOMPLETE, SDL_GetError(), this->window);
+    }
+
+#if defined(__linux__)
+    VkXcbSurfaceCreateInfoKHR si = {};
+    si.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    si.pNext = nullptr;
+    si.flags = 0;
+    si.connection = XGetXCBConnection(info.info.x11.display);
+    si.window = info.info.x11.window;
+    result = vkCreateXcbSurfaceKHR(this->instance, &si, nullptr,
+      &this->swapchain.surface);
+#elif defined(_WIN32)
+    VkWin32SurfaceCreateInfoKHR si = {};
+    si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    si.pNext = nullptr;
+    si.flags = 0;
+    si.hinstance = GetModuleHandle(NULL);
+    si.hwnd = info.info.win.window;
+    result = vkCreateWin32SurfaceKHR(this->instance, &si, nullptr,
+      &this->swapchain.surface);
+#else
+    Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
+      "VkSurfaceKHR creation.", this->window);
+#endif
     return result;
 }
 
