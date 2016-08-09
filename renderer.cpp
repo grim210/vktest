@@ -147,10 +147,6 @@ void Renderer::Render(void)
 
 void Renderer::Update(double elapsed)
 {
-    if (m_events.empty()) {
-        return;
-    }
-
     while (!m_events.empty()) {
         SDL_WindowEvent ev = m_events.front();
         switch (ev.event) {
