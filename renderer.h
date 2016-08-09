@@ -64,7 +64,7 @@ private:
     VkDevice m_device;
 
     std::vector<VkFramebuffer> m_fbuffers;
-    std::vector<VkQueue> m_queues;
+    VkQueue m_renderqueue;
 
     struct Swapchain {
         VkSemaphore semready;

@@ -224,10 +224,7 @@ VkResult Renderer::create_device(void)
     * As a result, you will see no vkDestroyQueue or vkReleaseQueue call in
     * the Renderer::Release() method.
     */
-    m_queues.resize(m_gpu.queue_properties.queueCount);
-    for (uint32_t i = 0; i < m_queues.size(); i++) {
-        vkGetDeviceQueue(m_device, m_gpu.qidx, i, &m_queues[i]);
-    }
+    vkGetDeviceQueue(m_device, m_gpu.qidx, 0, &m_renderqueue);
 
     return result;
 }

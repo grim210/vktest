@@ -10,7 +10,6 @@ Renderer* Renderer::Init(CreateInfo* info)
     }
 
     Renderer* ret = new Renderer();
-    //ret->m_gpu.qidx = UINT32_MAX;
 
     /* If we don't receive anything in the parameter,
      * just fill with safe default values */
@@ -128,7 +127,7 @@ void Renderer::Render(void)
     si.signalSemaphoreCount = 1;
     si.pSignalSemaphores = sigsems;
 
-    result = vkQueueSubmit(m_queues[0], 1, &si, VK_NULL_HANDLE);
+    result = vkQueueSubmit(m_renderqueue, 1, &si, VK_NULL_HANDLE);
     Assert(result, "vkQueueSubmit", m_window);
 
     VkSwapchainKHR swapchains[] = { m_swapchain.chain };
@@ -141,8 +140,8 @@ void Renderer::Render(void)
     pi.pSwapchains = swapchains;
     pi.pImageIndices = &idx;
 
-    vkQueuePresentKHR(m_queues[0], &pi);
-    vkQueueWaitIdle(m_queues[0]);
+    vkQueuePresentKHR(m_renderqueue, &pi);
+    vkQueueWaitIdle(m_renderqueue);
 }
 
 void Renderer::Update(double elapsed)
@@ -188,8 +187,8 @@ VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
     submitinfo.commandBufferCount = 1;
     submitinfo.pCommandBuffers = &cbuff;
 
-    vkQueueSubmit(m_queues[0], 1, &submitinfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_queues[0]);
+    vkQueueSubmit(m_renderqueue, 1, &submitinfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_renderqueue);
 
     vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
 
