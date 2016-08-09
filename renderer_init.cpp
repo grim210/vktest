@@ -715,26 +715,31 @@ VkResult Renderer::create_synchronizers(void)
 
 SDL_Window* Renderer::create_window(void)
 {
-    /* Check for sane defaults first. */
-    if (m_cinfo.width == UINT16_MAX || m_cinfo.width == 0) {
-        m_cinfo.width = 800;
-    }
-
-    if (m_cinfo.height == UINT16_MAX || m_cinfo.height == 0) {
-        m_cinfo.height = 600;
-    }
-
-    if (m_cinfo.flags >= Renderer::_RANGE) {
-        m_cinfo.flags = Renderer::NONE;
+    SDL_DisplayMode displaymode;
+    int r = SDL_GetCurrentDisplayMode(0, &displaymode);
+    if (r) {
+        Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to determine current "
+          "display mode.");
     }
 
     uint32_t window_flags = 0;
     if (m_cinfo.flags & Renderer::FULLSCREEN) {
         window_flags |= SDL_WINDOW_FULLSCREEN;
-    }
+        m_cinfo.width = static_cast<uint16_t>(displaymode.w);
+        m_cinfo.height = static_cast<uint16_t>(displaymode.h);
+    } else {
+        /* Check for sane defaults first. */
+        if (m_cinfo.width == UINT16_MAX || m_cinfo.width == 0) {
+            m_cinfo.width = 800;
+        }
 
-    if (m_cinfo.flags & Renderer::RESIZABLE) {
-        window_flags |= SDL_WINDOW_RESIZABLE;
+        if (m_cinfo.height == UINT16_MAX || m_cinfo.height == 0) {
+            m_cinfo.height = 600;
+        }
+
+        if (m_cinfo.flags & Renderer::RESIZABLE) {
+            window_flags |= SDL_WINDOW_RESIZABLE;
+        }
     }
 
     SDL_Window* ret = SDL_CreateWindow(RENDERER_WINDOW_NAME,
