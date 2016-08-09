@@ -32,11 +32,11 @@
 class Renderer {
 public:
     enum Flags {
-        NONE       = 0x00,
-        FULLSCREEN = 0x01,
-        RESIZABLE  = 0x02,
-        VSYNC_ON   = 0x04,
-        _RANGE     = 0x08
+        NONE        = 0x00,
+        FULLSCREEN  = 0x01,
+        RESIZABLE   = 0x02,
+        VSYNC_ON    = 0x04,
+        _RANGE      = 0x08
     };
 
     struct CreateInfo {
@@ -45,8 +45,11 @@ public:
         int dlevel;
     };
 
+    /* static initializers so I can have a bit more control */
     static Renderer* Init(CreateInfo* info);
     static void Release(Renderer* renderer);
+
+    /* Typical render-loop type stuff. */
     void PushEvent(SDL_WindowEvent event);
     void RecreateSwapchain(void);
     void Render(void);
@@ -57,17 +60,8 @@ private:
     std::queue<SDL_WindowEvent> m_events;
     CreateInfo m_cinfo;
 
-    /*
-    * While this feels very clunky, it lets me know if we're in the first
-    * render loop after a swapchain creation.  It may be a crutch (hopefully),
-    * but without it, I get stuck forever waiting on a VkFence that never
-    * gets signalled.
-    */
-    bool m_firstpass;
-
     VkInstance m_instance;
     VkDevice m_device;
-    VkFence m_fence;
 
     std::vector<VkFramebuffer> m_fbuffers;
     std::vector<VkQueue> m_queues;
@@ -85,10 +79,6 @@ private:
         std::vector<VkImageView> views;
     } m_swapchain;
 
-    /*
-    * The VkPhysicalDevice, after you create your VkDevice, is pretty much
-    * useless to my knowledge.  That may change as I learn more about the spec.
-    */
     struct PhysicalDevice {
         uint32_t qidx;
         VkPhysicalDevice device;
@@ -116,28 +106,29 @@ private:
     VkDeviceMemory m_vbuffermem;
     VkDeviceMemory m_ibuffermem;
 
-    /* Only initialization functions */
-    VkResult create_cmdpool(void);
-    VkResult create_cmdbuffers(void);
+    /* Private helper functions. */
     VkResult create_vertexbuffer(void);
     VkResult create_indexbuffer(void);
+    VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
+    VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
+      VkMemoryPropertyFlags properties, VkBuffer* buffer,
+      VkDeviceMemory* buffer_memory);
+    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
+
+    /* Only initialization functions. Look in renderer_init.cpp */
+    VkResult create_cmdpool(void);
+    VkResult create_cmdbuffers(void);
     VkResult create_device(void);
     VkResult create_framebuffers(void);
     VkResult create_instance(void);
     VkResult create_pipeline(void);
     VkResult create_renderpass(void);
-    VkResult create_semaphores(void);
     VkResult create_surface(void);
     VkResult create_swapchain(void);
-
-    /* private helper functions */
-    VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
-    VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
-      VkMemoryPropertyFlags properties, VkBuffer* buffer,
-      VkDeviceMemory* buffer_memory);
+    VkResult create_synchronizers(void);
     SDL_Window* create_window(void);
-    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
 
+    /* Vulkan object releasing functions.  Look in renderer_release.cpp */
     VkResult release_device_objects(void);
     VkResult release_instance_objects(void);
     VkResult release_render_objects(void);
