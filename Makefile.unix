@@ -14,6 +14,8 @@ OBJS=	debug.o \
 	global.o \
 	main.o \
 	renderer.o \
+	renderer_init.o \
+	renderer_release.o \
 	timer.o
 
 # Shader compilation code
@@ -26,7 +28,7 @@ all: $(TARGET) $(SHADERS)
 test:
 	LD_LIBRARY_PATH=$(VKSDK)/dbuild/loader \
 	VK_LAYER_PATH=$(VKSDK)/dbuild/layers \
-	./vktest -d1
+	./vktest --debug=1
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
@@ -42,6 +44,12 @@ main.o: main.cpp
 
 renderer.o: renderer.cpp renderer.h
 	$(CXX) $(CXXFLAGS) renderer.cpp -o renderer.o
+
+renderer_init.o: renderer_init.cpp renderer.h
+	$(CXX) $(CXXFLAGS) renderer_init.cpp -o renderer_init.o
+
+renderer_release.o: renderer_release.cpp renderer.h
+	$(CXX) $(CXXFLAGS) renderer_release.cpp -o renderer_release.o
 
 timer.o: timer.cpp timer.h
 	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
