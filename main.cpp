@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 
 #include <SDL2/SDL.h>
 #include "global.h"
@@ -6,6 +7,8 @@
 #include "timer.h"
 
 void parse_cli(struct Renderer::CreateInfo* ci, int argc, char* argv[]);
+void print_help(void);
+void print_version(void);
 
 int main(int argc, char* argv[])
 {
@@ -66,9 +69,29 @@ void parse_cli(struct Renderer::CreateInfo* ci, int argc, char* argv[])
     const char* ptr = nullptr;
 
     for (int i = 1; i < argc; i++) {
-        ptr = std::strstr(argv[i], "-d");
+        ptr = std::strstr(argv[i], "--help");
         if (ptr != nullptr) {
-            int value = atoi(ptr + 2);
+            print_help();
+            std::exit(EXIT_SUCCESS);
+        }
+
+        ptr = std::strstr(argv[i], "--version");
+        if (ptr != nullptr) {
+            print_version();
+            std::exit(EXIT_SUCCESS);
+        }
+
+        ptr = std::strstr(argv[i], "--fullscreen");
+        if (ptr != nullptr) {
+            ci->flags = static_cast<Renderer::Flags>(
+              static_cast<int>(Renderer::FULLSCREEN) |
+              static_cast<int>(ci->flags));
+            std::cerr << "CLI: Fullscreen toggled." << std::endl;
+        }
+
+        ptr = std::strstr(argv[i], "--debug=");
+        if (ptr != nullptr) {
+            int value = atoi(ptr + 8);
             ci->dlevel = value;
             std::cerr << "CLI: Debug level " << value << std::endl;
         }
@@ -83,3 +106,24 @@ void parse_cli(struct Renderer::CreateInfo* ci, int argc, char* argv[])
     }
 }
 
+void print_help(void)
+{
+    std::stringstream out;
+    out << "Usage:" << std::endl;
+    out << "\tvktest.exe [OPTIONS]" << std::endl << std::endl;
+    out << "Options:" << std::endl;
+    out << "\t--debug=X\tDebug levels from 0-4, least to most verbose.";
+    out << std::endl;
+    out << "\t--fullscreen\tFull screen rendering." << std::endl;
+    out << "\t--help\t\tPrint this help message." << std::endl;
+    out << "\t--version\tPrint version information and exit." << std::endl;
+    out << "\t--vsync\t\tTurn on vsync (locked to 60 FPS max framerate.";
+    out << std::endl;
+
+    std::cout << out.str();
+}
+
+void print_version(void)
+{
+    std::cout << "VkTest v0.0.1" << std::endl;
+}
