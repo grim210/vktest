@@ -56,6 +56,9 @@ Renderer* Renderer::Init(CreateInfo* info)
     result = ret->create_vertexbuffer();
     Assert(result, "Unable to create vertex buffers.", ret->m_window);
 
+    result = ret->create_indexbuffer();
+    Assert(result, "Unable to create index buffers.", ret->m_window);
+
     result = ret->create_cmdbuffers();
     Assert(result, "Unable to create command buffers.", ret->m_window);
 
@@ -113,6 +116,7 @@ void Renderer::RecreateSwapchain(void)
     this->create_framebuffers();
     this->create_cmdpool();
     this->create_vertexbuffer();
+    this->create_indexbuffer();
     this->create_cmdbuffers();
 
     vkDeviceWaitIdle(m_device);
@@ -299,11 +303,13 @@ VkResult Renderer::create_cmdbuffers(void)
         vkCmdBindPipeline(m_cmdbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
           m_pipeline.gpipeline);
 
-        VkBuffer vbuffs[] = {m_vbuffer};
+        VkBuffer buffs[] = {m_vbuffer};
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(m_cmdbuffers[i], 0, 1, vbuffs, offsets);
 
-        vkCmdDraw(m_cmdbuffers[i], m_vertices.size(), 1, 0, 0);
+        vkCmdBindVertexBuffers(m_cmdbuffers[i], 0, 1, buffs, offsets);
+        vkCmdBindIndexBuffer(m_cmdbuffers[i], m_ibuffer, 0,
+          VK_INDEX_TYPE_UINT16);
+        vkCmdDrawIndexed(m_cmdbuffers[i], m_indices.size(), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(m_cmdbuffers[i]);
 
@@ -332,9 +338,10 @@ VkResult Renderer::create_vertexbuffer(void)
     VkResult result = VK_SUCCESS;
 
     m_vertices = {
-       {{ 0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}},
-       {{ 0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
-       {{-0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}}
+       {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+       {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+       {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
+       {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
     };
 
     VkDeviceSize buffersize = (sizeof(m_vertices[0]) * m_vertices.size());
@@ -366,6 +373,45 @@ VkResult Renderer::create_vertexbuffer(void)
     if (result) {
         return result;
     }
+
+    vkFreeMemory(m_device, stagingbuffermemory, nullptr);
+    vkDestroyBuffer(m_device, stagingbuffer, nullptr);
+
+    return result;
+}
+
+VkResult Renderer::create_indexbuffer(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    m_indices = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    VkDeviceSize bsize = (sizeof(m_indices[0]) * m_indices.size());
+
+    VkBuffer stagingbuffer;
+    VkDeviceMemory stagingbuffermemory;
+
+    result = create_buffer(bsize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+      &stagingbuffer, &stagingbuffermemory);
+    Assert(result, "create_buffer: m_indices staging buffer", m_window);
+
+    void* data = nullptr;
+    vkMapMemory(m_device, stagingbuffermemory, 0, bsize, 0, &data);
+    std::memcpy(data, m_indices.data(), (size_t)bsize);
+    vkUnmapMemory(m_device, stagingbuffermemory);
+
+    result = create_buffer(bsize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+      VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      &m_ibuffer, &m_ibuffermem);
+    Assert(result, "create_buffer: m_ibuffer and m_ibuffermem", m_window);
+
+    result = copy_buffer(stagingbuffer, m_ibuffer, bsize);
+    Assert(result, "copy_buffer: stagingbuffer to m_ibuffer");
 
     vkFreeMemory(m_device, stagingbuffermemory, nullptr);
     vkDestroyBuffer(m_device, stagingbuffer, nullptr);
@@ -1078,6 +1124,9 @@ VkResult Renderer::release_render_objects(void)
 
     vkFreeMemory(m_device, m_vbuffermem, nullptr);
     vkDestroyBuffer(m_device, m_vbuffer, nullptr);
+
+    vkFreeMemory(m_device, m_ibuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_ibuffer, nullptr);
 
     vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipeline.layout, nullptr);

@@ -110,13 +110,17 @@ private:
     std::vector<VkCommandBuffer> m_cmdbuffers;
 
     std::vector<Vertex> m_vertices;
+    std::vector<uint16_t> m_indices;
     VkBuffer m_vbuffer;
+    VkBuffer m_ibuffer;
     VkDeviceMemory m_vbuffermem;
+    VkDeviceMemory m_ibuffermem;
 
     /* Only initialization functions */
     VkResult create_cmdpool(void);
     VkResult create_cmdbuffers(void);
     VkResult create_vertexbuffer(void);
+    VkResult create_indexbuffer(void);
     VkResult create_device(void);
     VkResult create_framebuffers(void);
     VkResult create_instance(void);
