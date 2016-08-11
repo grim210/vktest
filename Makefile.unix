@@ -6,7 +6,7 @@ CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror \
 	-DVKTEST_DEBUG $(VKSDK_INC)
 GLSL=../Vulkan-LoaderAndValidationLayers/external/glslang/build/StandAlone/glslangValidator
-GLSLFLAGS=-V
+GLSLFLAGS=-V -s
 LD=g++
 LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf

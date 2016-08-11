@@ -5,7 +5,7 @@ VKLIB=$(VKSDK)/Bin32/
 CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
 GLSL=$(VKSDK)/Bin32/glslangValidator
-GLSLFLAGS=-V
+GLSLFLAGS=-V -s
 LD=g++
 LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VKLIB)
 RM=rm -rf
