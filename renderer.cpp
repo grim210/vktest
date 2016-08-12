@@ -142,10 +142,30 @@ void Renderer::Render(void)
 
     vkQueuePresentKHR(m_renderqueue, &pi);
     vkQueueWaitIdle(m_renderqueue);
+
+    m_fpsinfo.framecount++;
 }
 
 void Renderer::Update(double elapsed)
 {
+    if (elapsed - m_fpsinfo.last >= 1.0) {
+        std::stringstream out;
+        out << RENDERER_WINDOW_NAME << " | ";
+        out << "FPS: " << m_fpsinfo.framecount;
+
+        m_fpsinfo.framecount = 0;
+        m_fpsinfo.last = elapsed;
+
+        /* temporary solution.  I would eventually like to render test
+        * in the window.  But that's a story for another day. */
+        if (m_cinfo.flags & Renderer::FPS_ON) {
+            SDL_SetWindowTitle(m_window, out.str().c_str());
+        }
+
+        /* log to stdout regardless. */
+        std::cout << out.str() << std::endl;
+    }
+
     while (!m_events.empty()) {
         SDL_WindowEvent ev = m_events.front();
         switch (ev.event) {

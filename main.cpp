@@ -30,8 +30,6 @@ int main(int argc, char* argv[])
     }
 
     Timer t;
-    double fstart = t.Elapsed();
-    int framecount = 0;
 
     bool done = false;
     while (!done) {
@@ -49,13 +47,6 @@ int main(int argc, char* argv[])
 
         rend->Update(current);
         rend->Render();
-
-        framecount++;
-        if (t.Elapsed() - fstart >= 1.0) {
-            std::cout << "FPS: " << framecount << std::endl;
-            framecount = 0;
-            fstart = t.Elapsed();
-        }
     }
 
     Renderer::Release(rend);
@@ -102,6 +93,14 @@ void parse_cli(struct Renderer::CreateInfo* ci, int argc, char* argv[])
               static_cast<int>(Renderer::VSYNC_ON) |
               static_cast<int>(ci->flags));
             std::cerr << "CLI: VSync toggled." << std::endl;
+        }
+
+        ptr = std::strstr(argv[i], "--fps");
+        if (ptr != nullptr) {
+            ci->flags = static_cast<Renderer::Flags>(
+              static_cast<int>(Renderer::FPS_ON) |
+              static_cast<int>(ci->flags));
+            std::cerr << "CLI: FPS Display toggled." << std::endl;
         }
     }
 }

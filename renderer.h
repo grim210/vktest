@@ -25,7 +25,7 @@
 
 #define RENDERER_DEFAULT_WIDTH      (800)
 #define RENDERER_DEFAULT_HEIGHT     (600)
-#define RENDERER_WINDOW_NAME        ("VkTest")
+#define RENDERER_WINDOW_NAME        ("Vulkan Renderer")
 
 #include "global.h"
 
@@ -36,7 +36,7 @@ public:
         FULLSCREEN  = 0x01,
         RESIZABLE   = 0x02,
         VSYNC_ON    = 0x04,
-        _RANGE      = 0x08
+        FPS_ON      = 0x08
     };
 
     struct CreateInfo {
@@ -59,6 +59,10 @@ private:
     SDL_Window* m_window;
     std::queue<SDL_WindowEvent> m_events;
     CreateInfo m_cinfo;
+    struct FPSInfo {
+        int framecount;
+        double last;
+    } m_fpsinfo;
 
     VkInstance m_instance;
     VkDevice m_device;
