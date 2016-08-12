@@ -18,6 +18,8 @@ VkResult Renderer::release_instance_objects(void)
 
 VkResult Renderer::release_render_objects(void)
 {
+    vkDestroyDescriptorSetLayout(m_device, m_box.dslayout, nullptr);
+    vkDestroyDescriptorPool(m_device, m_box.dpool, nullptr);
     vkResetCommandPool(m_device, m_cmdpool,
       VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 
@@ -26,11 +28,17 @@ VkResult Renderer::release_render_objects(void)
     }
     m_fbuffers.clear();
 
-    vkFreeMemory(m_device, m_vbuffermem, nullptr);
-    vkDestroyBuffer(m_device, m_vbuffer, nullptr);
+    vkFreeMemory(m_device, m_box.vbuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_box.vbuffer, nullptr);
 
-    vkFreeMemory(m_device, m_ibuffermem, nullptr);
-    vkDestroyBuffer(m_device, m_ibuffer, nullptr);
+    vkFreeMemory(m_device, m_box.ibuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_box.ibuffer, nullptr);
+
+    vkFreeMemory(m_device, m_box.ubuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_box.ubuffer, nullptr);
+
+    vkFreeMemory(m_device, m_box.usbuffermem, nullptr);
+    vkDestroyBuffer(m_device, m_box.usbuffer, nullptr);
 
     vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipeline.layout, nullptr);

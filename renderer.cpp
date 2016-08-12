@@ -43,6 +43,9 @@ Renderer* Renderer::Init(CreateInfo* info)
     result = ret->create_renderpass();
     Assert(result, "Unable to create Renderpass object.", ret->m_window);
 
+    result = ret->create_descriptorset_layout();
+    Assert(result, "Unable to create descriptorset layout.", ret->m_window);
+
     result = ret->create_pipeline();
     Assert(result, "Unable to create graphics pipeline.", ret->m_window);
 
@@ -57,6 +60,15 @@ Renderer* Renderer::Init(CreateInfo* info)
 
     result = ret->create_indexbuffer();
     Assert(result, "Unable to create index buffers.", ret->m_window);
+
+    result = ret->create_uniformbuffer();
+    Assert(result, "Unable to create uniform buffers.", ret->m_window);
+
+    result = ret->create_descriptorpool();
+    Assert(result, "Unable to create descriptor pool.", ret->m_window);
+
+    result = ret->create_descriptorset();
+    Assert(result, "Unable to create descriptor set.", ret->m_window);
 
     result = ret->create_cmdbuffers();
     Assert(result, "Unable to create command buffers.", ret->m_window);
@@ -94,11 +106,15 @@ void Renderer::RecreateSwapchain(void)
 
     this->create_swapchain();
     this->create_renderpass();
+    this->create_descriptorset_layout();
     this->create_pipeline();
     this->create_framebuffers();
     this->create_cmdpool();
     this->create_vertexbuffer();
     this->create_indexbuffer();
+    this->create_uniformbuffer();
+    this->create_descriptorpool();
+    this->create_descriptorset();
     this->create_cmdbuffers();
 
     vkDeviceWaitIdle(m_device);
@@ -148,6 +164,40 @@ void Renderer::Render(void)
 
 void Renderer::Update(double elapsed)
 {
+
+    while (!m_events.empty()) {
+        SDL_WindowEvent ev = m_events.front();
+        switch (ev.event) {
+        case SDL_WINDOWEVENT_RESIZED:
+            this->RecreateSwapchain();
+            break;
+        }
+
+        m_events.pop();
+    }
+
+    UniformBufferObject ubo = {};
+
+    ubo.model = glm::rotate(glm::mat4(), static_cast<float>(elapsed) *
+      glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    ubo.view = glm::lookAt(
+      glm::vec3(2.0f, 2.0f, 2.0f),
+      glm::vec3(0.0f, 0.0f, 0.0f),
+      glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+
+    float ratio = m_swapchain.extent.width / m_swapchain.extent.height;
+    ubo.proj = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;       // y-axis is opposite of OpenGL in Vulkan.
+
+    void* data = nullptr;
+    vkMapMemory(m_device, m_box.usbuffermem, 0, sizeof(ubo), 0, &data);
+    std::memcpy(data, &ubo, sizeof(ubo));
+    vkUnmapMemory(m_device, m_box.usbuffermem);
+
+    copy_buffer(m_box.usbuffer, m_box.ubuffer, sizeof(ubo));
+
     if (elapsed - m_fpsinfo.last >= 1.0) {
         std::stringstream out;
         out << RENDERER_WINDOW_NAME << " | ";
@@ -165,18 +215,8 @@ void Renderer::Update(double elapsed)
         /* log to stdout regardless. */
         std::cout << out.str() << std::endl;
     }
-
-    while (!m_events.empty()) {
-        SDL_WindowEvent ev = m_events.front();
-        switch (ev.event) {
-        case SDL_WINDOWEVENT_RESIZED:
-            this->RecreateSwapchain();
-            break;
-        }
-
-        m_events.pop();
-    }
 }
+
 
 VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
 {
@@ -248,18 +288,120 @@ VkResult Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
     return vkBindBufferMemory(m_device, *buffer, *buffer_memory, 0);
 }
 
+VkResult Renderer::create_descriptorset(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    VkDescriptorSetLayout layouts[] = { m_box.dslayout };
+    VkDescriptorSetAllocateInfo allocinfo = {};
+    allocinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocinfo.descriptorPool = m_box.dpool;
+    allocinfo.descriptorSetCount = 1;
+    allocinfo.pSetLayouts = layouts;
+
+    result =  vkAllocateDescriptorSets(m_device, &allocinfo, &m_box.dset);
+    if (result) {
+        return result;
+    }
+
+    VkDescriptorBufferInfo bi = {};
+    bi.buffer = m_box.ubuffer;
+    bi.offset = 0;
+    bi.range = sizeof(UniformBufferObject);
+
+    VkWriteDescriptorSet dw = {};
+    dw.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    dw.dstSet = m_box.dset;
+    dw.dstBinding = 0;
+    dw.dstArrayElement = 0;
+    dw.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    dw.descriptorCount = 1;
+    dw.pBufferInfo = &bi;
+    dw.pImageInfo = nullptr;
+    dw.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(m_device, 1, &dw, 0, nullptr);
+
+    return result;
+}
+
+VkResult Renderer::create_descriptorpool(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    VkDescriptorPoolSize poolsize = {};
+    poolsize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolsize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolinfo = {};
+    poolinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolinfo.poolSizeCount = 1;
+    poolinfo.pPoolSizes = &poolsize;
+    poolinfo.maxSets = 1;
+
+    result = vkCreateDescriptorPool(m_device, &poolinfo, nullptr, &m_box.dpool);
+
+    return result;
+}
+
+VkResult Renderer::create_descriptorset_layout(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    VkDescriptorSetLayoutBinding ubo_layout_binding = {};
+    ubo_layout_binding.binding = 0;
+    ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ubo_layout_binding.descriptorCount = 1;
+    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    ubo_layout_binding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo li = {};
+    li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    li.bindingCount = 1;
+    li.pBindings = &ubo_layout_binding;
+
+    result = vkCreateDescriptorSetLayout(m_device, &li, nullptr,
+      &m_box.dslayout);
+    if (result) {
+        return result;
+    }
+
+    return result;
+}
+
+VkResult Renderer::create_uniformbuffer(void)
+{
+    VkResult result = VK_SUCCESS;
+    VkDeviceSize buffersize = sizeof(UniformBufferObject);
+
+    result = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &m_box.usbuffer,
+      &m_box.usbuffermem);
+    if (result) {
+        return result;
+    }
+
+    result = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+      VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      &m_box.ubuffer, &m_box.ubuffermem);
+
+    return result;
+}
+
 VkResult Renderer::create_vertexbuffer(void)
 {
     VkResult result = VK_SUCCESS;
 
-    m_vertices = {
+    m_box.vertices = {
        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
        {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
        {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
     };
 
-    VkDeviceSize buffersize = (sizeof(m_vertices[0]) * m_vertices.size());
+    VkDeviceSize buffersize = (sizeof(m_box.vertices[0]) *
+      m_box.vertices.size());
 
     VkBuffer stagingbuffer;
     VkDeviceMemory stagingbuffermemory;
@@ -274,17 +416,17 @@ VkResult Renderer::create_vertexbuffer(void)
 
     void* data = nullptr;
     vkMapMemory(m_device, stagingbuffermemory, 0, buffersize, 0, &data);
-    std::memcpy(data, m_vertices.data(), (size_t)buffersize);
+    std::memcpy(data, m_box.vertices.data(), (size_t)buffersize);
     vkUnmapMemory(m_device, stagingbuffermemory);
 
     result = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      &m_vbuffer, &m_vbuffermem);
+      &m_box.vbuffer, &m_box.vbuffermem);
     if (result) {
         return result;
     }
 
-    result = copy_buffer(stagingbuffer, m_vbuffer, buffersize);
+    result = copy_buffer(stagingbuffer, m_box.vbuffer, buffersize);
     if (result) {
         return result;
     }
@@ -299,12 +441,12 @@ VkResult Renderer::create_indexbuffer(void)
 {
     VkResult result = VK_SUCCESS;
 
-    m_indices = {
+    m_box.indices = {
         0, 1, 2,
         2, 3, 0
     };
 
-    VkDeviceSize bsize = (sizeof(m_indices[0]) * m_indices.size());
+    VkDeviceSize bsize = (sizeof(m_box.indices[0]) * m_box.indices.size());
 
     VkBuffer stagingbuffer;
     VkDeviceMemory stagingbuffermemory;
@@ -317,15 +459,15 @@ VkResult Renderer::create_indexbuffer(void)
 
     void* data = nullptr;
     vkMapMemory(m_device, stagingbuffermemory, 0, bsize, 0, &data);
-    std::memcpy(data, m_indices.data(), (size_t)bsize);
+    std::memcpy(data, m_box.indices.data(), (size_t)bsize);
     vkUnmapMemory(m_device, stagingbuffermemory);
 
     result = create_buffer(bsize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
       VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      &m_ibuffer, &m_ibuffermem);
+      &m_box.ibuffer, &m_box.ibuffermem);
     Assert(result, "create_buffer: m_ibuffer and m_ibuffermem", m_window);
 
-    result = copy_buffer(stagingbuffer, m_ibuffer, bsize);
+    result = copy_buffer(stagingbuffer, m_box.ibuffer, bsize);
     Assert(result, "copy_buffer: stagingbuffer to m_ibuffer");
 
     vkFreeMemory(m_device, stagingbuffermemory, nullptr);

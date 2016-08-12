@@ -21,7 +21,10 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
+
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #define RENDERER_DEFAULT_WIDTH      (800)
 #define RENDERER_DEFAULT_HEIGHT     (600)
@@ -103,16 +106,30 @@ private:
     VkCommandPool m_cmdpool;
     std::vector<VkCommandBuffer> m_cmdbuffers;
 
-    std::vector<Vertex> m_vertices;
-    std::vector<uint16_t> m_indices;
-    VkBuffer m_vbuffer;
-    VkBuffer m_ibuffer;
-    VkDeviceMemory m_vbuffermem;
-    VkDeviceMemory m_ibuffermem;
+    struct Box {
+        std::vector<Vertex> vertices;
+        std::vector<uint16_t> indices;
+        VkBuffer vbuffer;                 // vertex buffer
+        VkBuffer ibuffer;                 // index buffer
+        VkBuffer ubuffer;                 // uniform buffer
+        VkBuffer usbuffer;                // uniform staging buffer
+        VkDeviceMemory vbuffermem;
+        VkDeviceMemory ibuffermem;
+        VkDeviceMemory ubuffermem;
+        VkDeviceMemory usbuffermem;
+        VkDescriptorSetLayout dslayout;
+        VkDescriptorPool dpool;
+        VkDescriptorSet dset;
+    } m_box;
+
 
     /* Private helper functions. */
+    VkResult create_descriptorset_layout(void);
+    VkResult create_descriptorpool(void);
+    VkResult create_descriptorset(void);
     VkResult create_vertexbuffer(void);
     VkResult create_indexbuffer(void);
+    VkResult create_uniformbuffer(void);
     VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
     VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
       VkMemoryPropertyFlags properties, VkBuffer* buffer,

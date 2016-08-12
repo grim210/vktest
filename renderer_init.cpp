@@ -41,13 +41,17 @@ VkResult Renderer::create_cmdbuffers(void)
         vkCmdBindPipeline(m_cmdbuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
           m_pipeline.gpipeline);
 
-        VkBuffer buffs[] = {m_vbuffer};
+        VkBuffer buffs[] = { m_box.vbuffer };
         VkDeviceSize offsets[] = { 0 };
 
         vkCmdBindVertexBuffers(m_cmdbuffers[i], 0, 1, buffs, offsets);
-        vkCmdBindIndexBuffer(m_cmdbuffers[i], m_ibuffer, 0,
+        vkCmdBindIndexBuffer(m_cmdbuffers[i], m_box.ibuffer, 0,
           VK_INDEX_TYPE_UINT16);
-        vkCmdDrawIndexed(m_cmdbuffers[i], m_indices.size(), 1, 0, 0, 0);
+        vkCmdBindDescriptorSets(m_cmdbuffers[i],
+          VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.layout, 0, 1,
+          &m_box.dset, 0, nullptr);
+    
+        vkCmdDrawIndexed(m_cmdbuffers[i], m_box.indices.size(), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(m_cmdbuffers[i]);
 
@@ -379,7 +383,7 @@ VkResult Renderer::create_pipeline(void)
     rast.polygonMode = VK_POLYGON_MODE_FILL;
     rast.lineWidth = 1.0f;
     rast.cullMode = VK_CULL_MODE_BACK_BIT;
-    rast.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rast.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rast.depthBiasEnable = VK_FALSE;
     rast.depthBiasConstantFactor = 0.0f;
     rast.depthBiasClamp = 0.0f;
@@ -418,10 +422,12 @@ VkResult Renderer::create_pipeline(void)
     cbsci.blendConstants[2] = 0.0f;
     cbsci.blendConstants[3] = 0.0f;
 
+    VkDescriptorSetLayout set_layouts[] = { m_box.dslayout };
+
     VkPipelineLayoutCreateInfo plci = {};
     plci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    plci.setLayoutCount = 0;
-    plci.pSetLayouts = nullptr;
+    plci.setLayoutCount = 1;
+    plci.pSetLayouts = set_layouts;
     plci.pushConstantRangeCount = 0;
     plci.pPushConstantRanges = nullptr;
 
