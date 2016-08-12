@@ -1,4 +1,6 @@
 #include "global.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #define VKTEST_DEBUG_BREAK_CHAR_COUNT       (60)
 
@@ -145,4 +147,27 @@ std::vector<char> ReadFile(std::string path)
     f.close();
 
     return data;
+}
+
+bool ReadImage(struct STBImage* out, std::string path)
+{
+    if (out == nullptr || path.empty()) {
+        return false;
+    }
+
+    out->data = stbi_load(path.c_str(), &out->width, &out->height, &out->comp,
+      4);
+    if (out->data == nullptr) {
+        return false;
+    }
+
+    return true;
+}
+
+void ReleaseImage(struct STBImage* out)
+{
+    stbi_image_free(out->data);
+    out->width = 0;
+    out->height = 0;
+    out->comp = 0;
 }

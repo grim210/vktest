@@ -58,8 +58,17 @@ struct Vertex {
     }
 };
 
+struct STBImage {
+    int width, height, comp;
+    unsigned char* data;
+};
+
 void Assert(VkResult test, std::string message, SDL_Window* win = nullptr);
 void Info(std::string message, SDL_Window* win = nullptr);
 std::vector<char> ReadFile(std::string path);
+
+/* stb_image wrappers */
+bool ReadImage(struct STBImage* out, std::string path);
+void ReleaseImage(struct STBImage* img);
 
 #endif // VKTEST_GLOBAL_H
