@@ -66,7 +66,7 @@ VkResult Renderer::create_cmdpool(void)
     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cpci.pNext = nullptr;
     cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    cpci.queueFamilyIndex = m_gpu.qidx;
+    cpci.queueFamilyIndex = m_gpu.queue_idx;
 
     return vkCreateCommandPool(m_device, &cpci, nullptr, &m_cmdpool);
 }
@@ -96,7 +96,7 @@ VkResult Renderer::create_device(void)
      * I imagine that it would be possible to come across a device that can
      * do one or the other, so I'm not considering that case.
      */
-    m_gpu.qidx = UINT32_MAX;
+    m_gpu.queue_idx = UINT32_MAX;
     for (uint32_t i = 0; i < device_count; i++) {
         uint32_t queue_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physical_devices[i],
@@ -130,7 +130,7 @@ VkResult Renderer::create_device(void)
                  * queue index that supports presenting and rendering. */
                 if (support == VK_TRUE) {
                     m_gpu.device = physical_devices[i];
-                    m_gpu.qidx = j;
+                    m_gpu.queue_idx = j;
                     m_gpu.queue_properties = target_queue;
                     break;
                 }
@@ -139,7 +139,7 @@ VkResult Renderer::create_device(void)
 
         /* Used to determine if a suitable device and queue index has already
          * been found to break out of the outer VkPhysicalDevice loop. */
-        if (m_gpu.qidx != UINT32_MAX) {
+        if (m_gpu.queue_idx != UINT32_MAX) {
             break;
         }
     }
@@ -181,7 +181,7 @@ VkResult Renderer::create_device(void)
     q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     q_create_info.pNext = nullptr;
     q_create_info.flags = 0;
-    q_create_info.queueFamilyIndex = m_gpu.qidx;
+    q_create_info.queueFamilyIndex = m_gpu.queue_idx;
     q_create_info.queueCount = m_gpu.queue_properties.queueCount;
     q_create_info.pQueuePriorities = queue_priorities.data();
 
@@ -224,7 +224,7 @@ VkResult Renderer::create_device(void)
     * As a result, you will see no vkDestroyQueue or vkReleaseQueue call in
     * the Renderer::Release() method.
     */
-    vkGetDeviceQueue(m_device, m_gpu.qidx, 0, &m_renderqueue);
+    vkGetDeviceQueue(m_device, m_gpu.queue_idx, 0, &m_renderqueue);
 
     return result;
 }

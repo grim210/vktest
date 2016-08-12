@@ -80,7 +80,7 @@ private:
     } m_swapchain;
 
     struct PhysicalDevice {
-        uint32_t qidx;
+        uint32_t queue_idx;
         VkPhysicalDevice device;
         VkPhysicalDeviceFeatures features;
         VkPhysicalDeviceProperties properties;
