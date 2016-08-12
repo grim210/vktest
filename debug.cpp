@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #define VKTEST_DEBUG_BREAK_CHAR_COUNT       (60)
+#define VKTEST_DEBUG_OUTPUT_PATH            ("debug.txt")
 
 #ifdef VKTEST_DEBUG
 static PFN_vkCreateDebugReportCallbackEXT
@@ -59,7 +60,7 @@ VkResult Renderer::init_debug(void)
     result = pfnCreateDebugReportCallback(m_instance, &cci, nullptr,
       &this->m_callback);
 
-    m_log.open("log.txt", std::fstream::out);
+    m_log.open(VKTEST_DEBUG_OUTPUT_PATH, std::fstream::out);
     if (!m_log.is_open()) {
         Assert(VK_INCOMPLETE, "Failed to open m_log file.");
     }
