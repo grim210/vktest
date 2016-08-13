@@ -28,6 +28,11 @@ VkResult Renderer::release_render_objects(void)
     }
     m_fbuffers.clear();
 
+    vkDestroySampler(m_device, m_texture.sampler, nullptr);
+    vkDestroyImageView(m_device, m_texture.view, nullptr);
+    vkDestroyImage(m_device, m_texture.image, nullptr);
+    vkFreeMemory(m_device, m_texture.memory, nullptr);
+
     vkFreeMemory(m_device, m_box.vbuffermem, nullptr);
     vkDestroyBuffer(m_device, m_box.vbuffer, nullptr);
 

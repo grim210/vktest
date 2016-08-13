@@ -341,7 +341,7 @@ VkResult Renderer::create_pipeline(void)
 
     /* grab the vertex data descriptions. */
     VkVertexInputBindingDescription bdesc = Vertex::getBindDesc();
-    std::array<VkVertexInputAttributeDescription, 2> adescs =
+    std::array<VkVertexInputAttributeDescription, 3> adescs =
       Vertex::getAttrDesc();
 
     VkPipelineVertexInputStateCreateInfo vertinputinfo = {};
@@ -675,24 +675,12 @@ VkResult Renderer::create_swapchain(void)
 
     m_swapchain.views.resize(count);
     for (uint32_t i = 0; i < count; i++) {
-        VkImageViewCreateInfo ivci = {};
-        ivci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        ivci.image = m_swapchain.images[i];
-        ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        ivci.format = m_swapchain.format;
-        ivci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ivci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ivci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ivci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        ivci.subresourceRange.baseMipLevel = 0;
-        ivci.subresourceRange.levelCount = 1;
-        ivci.subresourceRange.baseArrayLayer = 0;
-        ivci.subresourceRange.layerCount = 1;
-
-        result = vkCreateImageView(m_device, &ivci, nullptr,
+        result = create_imageview(m_swapchain.images[i], m_swapchain.format,
           &m_swapchain.views[i]);
         Assert(result, "vkCreateImageView", m_window);
+        if (result) {
+            return result;
+        }
     }
 
     return result;

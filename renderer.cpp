@@ -55,6 +55,15 @@ Renderer* Renderer::Init(CreateInfo* info)
     result = ret->create_cmdpool();
     Assert(result, "Unable to create command pool", ret->m_window);
 
+    result = ret->create_texture();
+    Assert(result, "Unable to create texture!", ret->m_window);
+
+    result = ret->create_textureimageview();
+    Assert(result, "Unable to create texture view.", ret->m_window);
+
+    result = ret->create_sampler();
+    Assert(result, "Unable to create sampler for texture.", ret->m_window);
+
     result = ret->create_vertexbuffer();
     Assert(result, "Unable to create vertex buffers.", ret->m_window);
 
@@ -110,6 +119,9 @@ void Renderer::RecreateSwapchain(void)
     this->create_pipeline();
     this->create_framebuffers();
     this->create_cmdpool();
+    this->create_texture();
+    this->create_textureimageview();
+    this->create_sampler();
     this->create_vertexbuffer();
     this->create_indexbuffer();
     this->create_uniformbuffer();
@@ -217,6 +229,42 @@ void Renderer::Update(double elapsed)
     }
 }
 
+VkResult Renderer::begin_single_time_commands(VkCommandBuffer* cbuff)
+{
+    VkCommandBufferAllocateInfo ai = {};
+    ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ai.commandPool = m_cmdpool;
+    ai.commandBufferCount = 1;
+
+    vkAllocateCommandBuffers(m_device, &ai, cbuff);
+
+    VkCommandBufferBeginInfo begin_info = {};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(*cbuff, &begin_info);
+
+    return VK_SUCCESS;
+}
+
+VkResult Renderer::end_single_time_commands(VkCommandBuffer cbuff)
+{
+    vkEndCommandBuffer(cbuff);
+
+    VkSubmitInfo si = {};
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &cbuff;
+
+    vkQueueSubmit(m_renderqueue, 1, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_renderqueue);
+
+    vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
+
+    return VK_SUCCESS;
+}
+
 
 VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
 {
@@ -251,6 +299,40 @@ VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
     vkQueueWaitIdle(m_renderqueue);
 
     vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
+
+    return VK_SUCCESS;
+}
+
+VkResult Renderer::copy_image(VkImage src, VkImage dst, uint32_t w, uint32_t h)
+{
+    VkCommandBuffer cbuff;
+    VkResult result = begin_single_time_commands(&cbuff);
+    if (result) {
+        return result;
+    }
+
+    VkImageSubresourceLayers sub = {};
+    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    sub.baseArrayLayer = 0;
+    sub.mipLevel = 0;
+    sub.layerCount = 1;
+
+    VkImageCopy region = {};
+    region.srcSubresource = sub;
+    region.dstSubresource = sub;
+    region.srcOffset = {0, 0, 0};
+    region.dstOffset = {0, 0, 0};
+    region.extent.width = w;
+    region.extent.height = h;
+    region.extent.depth = 1;
+
+    vkCmdCopyImage(cbuff, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    result = end_single_time_commands(cbuff);
+    if (result) {
+        return result;
+    }
 
     return VK_SUCCESS;
 }
@@ -309,18 +391,31 @@ VkResult Renderer::create_descriptorset(void)
     bi.offset = 0;
     bi.range = sizeof(UniformBufferObject);
 
-    VkWriteDescriptorSet dw = {};
-    dw.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    dw.dstSet = m_box.dset;
-    dw.dstBinding = 0;
-    dw.dstArrayElement = 0;
-    dw.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    dw.descriptorCount = 1;
-    dw.pBufferInfo = &bi;
-    dw.pImageInfo = nullptr;
-    dw.pTexelBufferView = nullptr;
+    VkDescriptorImageInfo ii = {};
+    ii.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    ii.imageView = m_texture.view;
+    ii.sampler = m_texture.sampler;
 
-    vkUpdateDescriptorSets(m_device, 1, &dw, 0, nullptr);
+    std::array<VkWriteDescriptorSet, 2> dw = {};
+    dw[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    dw[0].dstSet = m_box.dset;
+    dw[0].dstBinding = 0;
+    dw[0].dstArrayElement = 0;
+    dw[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    dw[0].descriptorCount = 1;
+    dw[0].pBufferInfo = &bi;
+    dw[0].pImageInfo = nullptr;
+    dw[0].pTexelBufferView = nullptr;
+
+    dw[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    dw[1].dstSet = m_box.dset;
+    dw[1].dstBinding = 1;
+    dw[1].dstArrayElement = 0;
+    dw[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    dw[1].descriptorCount = 1;
+    dw[1].pImageInfo = &ii;
+
+    vkUpdateDescriptorSets(m_device, dw.size(), dw.data(), 0, nullptr);
 
     return result;
 }
@@ -329,14 +424,16 @@ VkResult Renderer::create_descriptorpool(void)
 {
     VkResult result = VK_SUCCESS;
 
-    VkDescriptorPoolSize poolsize = {};
-    poolsize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolsize.descriptorCount = 1;
+    std::array<VkDescriptorPoolSize, 2> pool_sizes = {};
+    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_sizes[0].descriptorCount = 1;
+    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_sizes[1].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolinfo = {};
     poolinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolinfo.poolSizeCount = 1;
-    poolinfo.pPoolSizes = &poolsize;
+    poolinfo.poolSizeCount = pool_sizes.size();
+    poolinfo.pPoolSizes = pool_sizes.data();
     poolinfo.maxSets = 1;
 
     result = vkCreateDescriptorPool(m_device, &poolinfo, nullptr, &m_box.dpool);
@@ -348,6 +445,14 @@ VkResult Renderer::create_descriptorset_layout(void)
 {
     VkResult result = VK_SUCCESS;
 
+    VkDescriptorSetLayoutBinding sampler_layout_binding = {};
+    sampler_layout_binding.binding = 1;
+    sampler_layout_binding.descriptorCount = 1;
+    sampler_layout_binding.descriptorType =
+      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    sampler_layout_binding.pImmutableSamplers = nullptr;
+    sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
     VkDescriptorSetLayoutBinding ubo_layout_binding = {};
     ubo_layout_binding.binding = 0;
     ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -355,13 +460,136 @@ VkResult Renderer::create_descriptorset_layout(void)
     ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     ubo_layout_binding.pImmutableSamplers = nullptr;
 
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings =
+      { ubo_layout_binding, sampler_layout_binding };
+
     VkDescriptorSetLayoutCreateInfo li = {};
     li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    li.bindingCount = 1;
-    li.pBindings = &ubo_layout_binding;
+    li.bindingCount = bindings.size();
+    li.pBindings = bindings.data();
 
     result = vkCreateDescriptorSetLayout(m_device, &li, nullptr,
       &m_box.dslayout);
+    if (result) {
+        return result;
+    }
+
+    return result;
+}
+
+VkResult Renderer::create_sampler(void)
+{
+    VkSamplerCreateInfo ci = {};
+    ci.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    ci.magFilter = VK_FILTER_LINEAR;
+    ci.minFilter = VK_FILTER_LINEAR;
+    ci.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    ci.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    ci.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    ci.anisotropyEnable = VK_TRUE;
+    ci.maxAnisotropy = 16;
+    ci.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    ci.unnormalizedCoordinates = VK_FALSE;
+    ci.compareEnable = VK_FALSE;
+    ci.compareOp = VK_COMPARE_OP_ALWAYS;
+    ci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    ci.mipLodBias = 0.0f;
+    ci.minLod = 0.0f;
+    ci.maxLod = 0.0f;
+
+    return vkCreateSampler(m_device, &ci, nullptr, &m_texture.sampler);
+}
+
+VkResult Renderer::create_texture(void)
+{
+    VkResult result = VK_SUCCESS;
+    STBImage img;
+
+    if (!ReadImage(&img, "./textures/bitcoin.png")) {
+        return VK_ERROR_FEATURE_NOT_PRESENT;
+    }
+
+    VkDeviceSize img_size = img.width * img.height * 4;
+    VkImage staging_image;
+    VkDeviceMemory staging_memory;
+
+    result = create_image(img.width, img.height, VK_FORMAT_R8G8B8A8_UNORM,
+      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_image, &staging_memory);
+    if (result) {
+        return result;
+    }
+
+    void* data = nullptr;
+    vkMapMemory(m_device, staging_memory, 0, img_size, 0, &data);
+    std::memcpy(data, img.data, (size_t)img_size);
+    vkUnmapMemory(m_device, staging_memory);
+
+    result = create_image(img.width, img.height, VK_FORMAT_R8G8B8A8_UNORM,
+      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+      VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      &m_texture.image, &m_texture.memory);
+    if (result) {
+        return result;
+    }
+
+    result = transition_image_layout(staging_image,
+      VK_IMAGE_LAYOUT_PREINITIALIZED,
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    if (result) {
+        return result;
+    }
+
+    result = transition_image_layout(m_texture.image,
+      VK_IMAGE_LAYOUT_PREINITIALIZED,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    if (result) {
+        return result;
+    }
+
+    result = copy_image(staging_image, m_texture.image, img.width, img.height);
+    if (result) {
+        return result;
+    }
+
+    result = transition_image_layout(m_texture.image,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (result) {
+        return result;
+    }
+
+    ReleaseImage(&img);
+    vkDestroyImage(m_device, staging_image, nullptr);
+    vkFreeMemory(m_device, staging_memory, nullptr);
+
+    return result;
+}
+
+VkResult Renderer::create_imageview(VkImage image, VkFormat format,
+  VkImageView* view)
+{
+    VkImageViewCreateInfo ci = {};
+    ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    ci.image = image;
+    ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    ci.format = format;
+    ci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    ci.subresourceRange.baseMipLevel = 0;
+    ci.subresourceRange.levelCount = 1;
+    ci.subresourceRange.baseArrayLayer = 0;
+    ci.subresourceRange.layerCount = 1;
+
+    return vkCreateImageView(m_device, &ci, nullptr, view);
+}
+
+VkResult Renderer::create_textureimageview(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    result = create_imageview(m_texture.image, VK_FORMAT_R8G8B8A8_UNORM,
+      &m_texture.view);
     if (result) {
         return result;
     }
@@ -394,10 +622,10 @@ VkResult Renderer::create_vertexbuffer(void)
     VkResult result = VK_SUCCESS;
 
     m_box.vertices = {
-       {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-       {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-       {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
-       {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+       {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
     };
 
     VkDeviceSize buffersize = (sizeof(m_box.vertices[0]) *
@@ -435,6 +663,50 @@ VkResult Renderer::create_vertexbuffer(void)
     vkDestroyBuffer(m_device, stagingbuffer, nullptr);
 
     return result;
+}
+
+VkResult Renderer::create_image(uint32_t w, uint32_t h, VkFormat fmt,
+  VkImageTiling tiling, VkImageUsageFlags usage,
+  VkMemoryPropertyFlags properties, VkImage* image, VkDeviceMemory* mem)
+{
+    VkResult result = VK_SUCCESS;
+
+    VkImageCreateInfo image_info = {};
+    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.extent.width = w;
+    image_info.extent.height = h;
+    image_info.extent.depth = 1;
+    image_info.mipLevels = 1;
+    image_info.arrayLayers = 1;
+    image_info.format = fmt;
+    image_info.tiling = tiling;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+    image_info.usage = usage;
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    result = vkCreateImage(m_device, &image_info, nullptr, image);
+    if (result) {
+        return result;
+    }
+
+    VkMemoryRequirements mem_req;
+    vkGetImageMemoryRequirements(m_device, *image, &mem_req);
+
+    VkMemoryAllocateInfo alloc_info = {};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_req.size;
+    alloc_info.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits,
+      properties);
+
+    result = vkAllocateMemory(m_device, &alloc_info, nullptr, mem);
+    if (result) {
+        return result;
+    }
+
+    vkBindImageMemory(m_device, *image, *mem, 0);
+    return VK_SUCCESS;
 }
 
 VkResult Renderer::create_indexbuffer(void)
@@ -493,5 +765,49 @@ uint32_t Renderer::find_memory_type(uint32_t filter,
       "Failed to find suitable GPU memory for vertex data", m_window);
 
     return UINT32_MAX;
+}
+
+VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
+  VkImageLayout _new)
+{
+    VkCommandBuffer cbuff;
+
+    begin_single_time_commands(&cbuff);
+
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = old;
+    barrier.newLayout = _new;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = img;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    if (old == VK_IMAGE_LAYOUT_PREINITIALIZED &&
+      _new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    } else if (old == VK_IMAGE_LAYOUT_PREINITIALIZED &&
+      _new == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    } else if (old == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+      _new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    } else {
+        return VK_ERROR_FEATURE_NOT_PRESENT;
+    }
+
+    vkCmdPipelineBarrier(cbuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
+      0, nullptr, 0, nullptr, 1, &barrier);
+    end_single_time_commands(cbuff);
+
+    return VK_SUCCESS;
 }
 

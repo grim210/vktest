@@ -122,19 +122,40 @@ private:
         VkDescriptorSet dset;
     } m_box;
 
+    struct Texture {
+        VkImage image;
+        VkImageView view;
+        VkDeviceMemory memory;
+        VkSampler sampler;
+    } m_texture;
 
-    /* Private helper functions. */
+
     VkResult create_descriptorset_layout(void);
     VkResult create_descriptorpool(void);
     VkResult create_descriptorset(void);
     VkResult create_vertexbuffer(void);
     VkResult create_indexbuffer(void);
+    VkResult create_sampler(void);
+    VkResult create_texture(void);
+    VkResult create_textureimageview(void);
     VkResult create_uniformbuffer(void);
+
+    VkResult begin_single_time_commands(VkCommandBuffer* cbuff);
+    VkResult end_single_time_commands(VkCommandBuffer cbuff);
+
     VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
+    VkResult copy_image(VkImage src, VkImage dst, uint32_t w, uint32_t h);
     VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
       VkMemoryPropertyFlags properties, VkBuffer* buffer,
       VkDeviceMemory* buffer_memory);
+    VkResult create_image(uint32_t w, uint32_t h, VkFormat fmt,
+      VkImageTiling tiling, VkImageUsageFlags usage,
+      VkMemoryPropertyFlags properties, VkImage* img, VkDeviceMemory* mem);
+    VkResult create_imageview(VkImage image, VkFormat format,
+      VkImageView* view);
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
+    VkResult transition_image_layout(VkImage img, VkImageLayout old,
+      VkImageLayout _new);
 
     /* Only initialization functions. Look in renderer_init.cpp */
     VkResult create_cmdpool(void);

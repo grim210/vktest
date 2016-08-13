@@ -156,7 +156,7 @@ bool ReadImage(struct STBImage* out, std::string path)
     }
 
     out->data = stbi_load(path.c_str(), &out->width, &out->height, &out->comp,
-      4);
+      STBI_rgb_alpha);
     if (out->data == nullptr) {
         return false;
     }
