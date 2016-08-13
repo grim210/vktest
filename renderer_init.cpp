@@ -4,7 +4,11 @@ VkResult Renderer::create_cmdbuffers(void)
 {
     VkResult result = VK_SUCCESS;
 
-    /* Command buffer creation */
+    /*
+    * I'm creating one command buffer per framebuffer, which corresponds
+    * with the number of images in my swapchain.  This will allow each
+    * command buffer to work while the other is occupied with presenting.
+    */
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbai.pNext = nullptr;
@@ -14,7 +18,9 @@ VkResult Renderer::create_cmdbuffers(void)
     m_cmdbuffers.resize(m_fbuffers.size());
     result = vkAllocateCommandBuffers(m_device, &cbai,
       m_cmdbuffers.data());
-    Assert(result, "vkAllocateCommandBuffers", m_window);
+    if (result) {
+        return result;
+    }
 
     /* I'm not sure what this is...will figure out. */
     for (uint32_t i = 0; i < m_cmdbuffers.size(); i++) {
@@ -24,16 +30,19 @@ VkResult Renderer::create_cmdbuffers(void)
 
         vkBeginCommandBuffer(m_cmdbuffers[i], &begin_info);
 
+        std::vector<VkClearValue> clear_values;
+        clear_values.resize(2);
+        clear_values[0].color = { 0.2f, 0.2f, 0.2f, 1.0f };
+        clear_values[1].depthStencil = { 1.0f, 0 };
+
         VkRenderPassBeginInfo rpi = {};
         rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpi.renderPass = m_pipeline.renderpass;
         rpi.framebuffer = m_fbuffers[i];
         rpi.renderArea.offset = { 0, 0 };
         rpi.renderArea.extent = m_swapchain.extent;
-
-        VkClearValue clear_color = { 0.2f, 0.2f, 0.2f, 1.0f };
-        rpi.clearValueCount = 1;
-        rpi.pClearValues = &clear_color;
+        rpi.clearValueCount = clear_values.size();
+        rpi.pClearValues = clear_values.data();
 
         vkCmdBeginRenderPass(m_cmdbuffers[i], &rpi,
           VK_SUBPASS_CONTENTS_INLINE);
@@ -239,15 +248,16 @@ VkResult Renderer::create_framebuffers(void)
     m_fbuffers.resize(m_swapchain.views.size());
 
     for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
-        VkImageView attachments[] = {
-            m_swapchain.views[i]
+        std::array<VkImageView, 2> attachments = {
+            m_swapchain.views[i],
+            m_texture.depth_view
         };
 
         VkFramebufferCreateInfo fci = {};
         fci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fci.renderPass = m_pipeline.renderpass;
-        fci.attachmentCount = 1;
-        fci.pAttachments = attachments;
+        fci.attachmentCount = attachments.size();
+        fci.pAttachments = attachments.data();
         fci.width = m_swapchain.extent.width;
         fci.height = m_swapchain.extent.height;
         fci.layers = 1;
@@ -398,6 +408,14 @@ VkResult Renderer::create_pipeline(void)
     ms.alphaToCoverageEnable = VK_FALSE;
     ms.alphaToOneEnable = VK_FALSE;
 
+    VkPipelineDepthStencilStateCreateInfo dci = {};
+    dci.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    dci.depthTestEnable = VK_TRUE;
+    dci.depthWriteEnable = VK_TRUE;
+    dci.depthCompareOp = VK_COMPARE_OP_LESS;
+    dci.depthBoundsTestEnable = VK_FALSE;
+    dci.stencilTestEnable = VK_FALSE;
+
     VkPipelineColorBlendAttachmentState cba = {};
     cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
                          VK_COLOR_COMPONENT_G_BIT |
@@ -444,7 +462,7 @@ VkResult Renderer::create_pipeline(void)
     pci.pViewportState = &vstate;
     pci.pRasterizationState = &rast;
     pci.pMultisampleState = &ms;
-    pci.pDepthStencilState = nullptr;
+    pci.pDepthStencilState = &dci;
     pci.pColorBlendState = &cbsci;
     pci.pDynamicState = nullptr;
     pci.layout = m_pipeline.layout;
@@ -462,8 +480,6 @@ VkResult Renderer::create_pipeline(void)
 
 VkResult Renderer::create_renderpass(void)
 {
-    VkResult result = VK_SUCCESS;
-
     VkAttachmentDescription color_attachment = {};
     color_attachment.format = m_swapchain.format;
     color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -478,23 +494,54 @@ VkResult Renderer::create_renderpass(void)
     car.attachment = 0;
     car.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkFormat format;
+    VkResult result = find_depth_format(&format);
+    if (result) {
+        return result;
+    }
+
+    VkAttachmentDescription depth_attachment = {};
+    depth_attachment.format = format;
+    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout =
+      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference dar = {};
+    dar.attachment = 1;
+    dar.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &car;
+    subpass.pDepthStencilAttachment = &dar;
 
+    VkSubpassDependency spd = {};
+    spd.srcSubpass = VK_SUBPASS_EXTERNAL;
+    spd.dstSubpass = 0;
+    spd.srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    spd.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    spd.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    spd.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    std::array<VkAttachmentDescription, 2> attachments = { color_attachment,
+      depth_attachment };
     VkRenderPassCreateInfo rpci = {};
     rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    rpci.attachmentCount = 1;
-    rpci.pAttachments = &color_attachment;
+    rpci.attachmentCount = attachments.size();
+    rpci.pAttachments = attachments.data();
     rpci.subpassCount = 1;
     rpci.pSubpasses = &subpass;
+    rpci.dependencyCount = 1;
+    rpci.pDependencies = &spd;
 
-    result = vkCreateRenderPass(m_device, &rpci, nullptr,
-      &m_pipeline.renderpass);
-    Assert(result, "vkCreateRenderPass", m_window);
-
-    return result;
+    return vkCreateRenderPass(m_device, &rpci, nullptr, &m_pipeline.renderpass);
 }
 
 VkResult Renderer::create_surface(void)
@@ -676,7 +723,7 @@ VkResult Renderer::create_swapchain(void)
     m_swapchain.views.resize(count);
     for (uint32_t i = 0; i < count; i++) {
         result = create_imageview(m_swapchain.images[i], m_swapchain.format,
-          &m_swapchain.views[i]);
+          VK_IMAGE_ASPECT_COLOR_BIT, &m_swapchain.views[i]);
         Assert(result, "vkCreateImageView", m_window);
         if (result) {
             return result;

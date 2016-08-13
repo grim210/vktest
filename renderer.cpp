@@ -49,11 +49,14 @@ Renderer* Renderer::Init(CreateInfo* info)
     result = ret->create_pipeline();
     Assert(result, "Unable to create graphics pipeline.", ret->m_window);
 
-    result = ret->create_framebuffers();
-    Assert(result, "Unable to create framebuffer objects.", ret->m_window);
-
     result = ret->create_cmdpool();
     Assert(result, "Unable to create command pool", ret->m_window);
+
+    result = ret->create_depthresources();
+    Assert(result, "Unable to create depth resources.", ret->m_window);
+
+    result = ret->create_framebuffers();
+    Assert(result, "Unable to create framebuffer objects.", ret->m_window);
 
     result = ret->create_texture();
     Assert(result, "Unable to create texture!", ret->m_window);
@@ -370,6 +373,29 @@ VkResult Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
     return vkBindBufferMemory(m_device, *buffer, *buffer_memory, 0);
 }
 
+VkResult Renderer::create_depthresources(void)
+{
+    VkResult result = VK_SUCCESS;
+
+    VkFormat format;
+    result = find_depth_format(&format);
+    if (result) {
+        return result;
+    }
+
+    create_image(m_swapchain.extent.width, m_swapchain.extent.height,
+      format, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      &m_texture.depth_image, &m_texture.depth_memory);
+    create_imageview(m_texture.depth_image, format,
+      VK_IMAGE_ASPECT_DEPTH_BIT, &m_texture.depth_view);
+    transition_image_layout(m_texture.depth_image, VK_IMAGE_LAYOUT_UNDEFINED,
+      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    return result;
+}
+
 VkResult Renderer::create_descriptorset(void)
 {
     VkResult result = VK_SUCCESS;
@@ -568,14 +594,14 @@ VkResult Renderer::create_texture(void)
 }
 
 VkResult Renderer::create_imageview(VkImage image, VkFormat format,
-  VkImageView* view)
+  VkImageAspectFlags aflags, VkImageView* view)
 {
     VkImageViewCreateInfo ci = {};
     ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     ci.image = image;
     ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
     ci.format = format;
-    ci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    ci.subresourceRange.aspectMask = aflags;
     ci.subresourceRange.baseMipLevel = 0;
     ci.subresourceRange.levelCount = 1;
     ci.subresourceRange.baseArrayLayer = 0;
@@ -589,7 +615,7 @@ VkResult Renderer::create_textureimageview(void)
     VkResult result = VK_SUCCESS;
 
     result = create_imageview(m_texture.image, VK_FORMAT_R8G8B8A8_UNORM,
-      &m_texture.view);
+      VK_IMAGE_ASPECT_COLOR_BIT, &m_texture.view);
     if (result) {
         return result;
     }
@@ -622,10 +648,16 @@ VkResult Renderer::create_vertexbuffer(void)
     VkResult result = VK_SUCCESS;
 
     m_box.vertices = {
-       {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-       {{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-       {{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-       {{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+       {{-0.5f, -0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f,  0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f,  0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f,  0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+       {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+
     };
 
     VkDeviceSize buffersize = (sizeof(m_box.vertices[0]) *
@@ -714,8 +746,8 @@ VkResult Renderer::create_indexbuffer(void)
     VkResult result = VK_SUCCESS;
 
     m_box.indices = {
-        0, 1, 2,
-        2, 3, 0
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
     };
 
     VkDeviceSize bsize = (sizeof(m_box.indices[0]) * m_box.indices.size());
@@ -748,6 +780,18 @@ VkResult Renderer::create_indexbuffer(void)
     return result;
 }
 
+VkResult Renderer::find_depth_format(VkFormat* format)
+{
+    std::vector<VkFormat> candidates = {
+        VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+
+    return find_supported_format(m_gpu.device, candidates,
+      VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      format);
+}
+
 uint32_t Renderer::find_memory_type(uint32_t filter,
   VkMemoryPropertyFlags flags)
 {
@@ -767,11 +811,39 @@ uint32_t Renderer::find_memory_type(uint32_t filter,
     return UINT32_MAX;
 }
 
+VkResult Renderer::find_supported_format(VkPhysicalDevice gpu,
+  std::vector<VkFormat> candidates, VkImageTiling tiling,
+  VkFormatFeatureFlags features, VkFormat* out)
+{
+    bool found = false;
+    for (uint32_t i = 0; i < candidates.size(); i++) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(gpu, candidates[i], &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR &&
+          (props.linearTilingFeatures & features) == features) {
+            *out = candidates[i];
+            found = true;
+            break;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+          (props.optimalTilingFeatures & features) == features) {
+            *out = candidates[i];
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        return VK_ERROR_FEATURE_NOT_PRESENT;
+    }
+
+    return VK_SUCCESS;
+}
+
 VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
   VkImageLayout _new)
 {
     VkCommandBuffer cbuff;
-
     begin_single_time_commands(&cbuff);
 
     VkImageMemoryBarrier barrier = {};
@@ -787,6 +859,12 @@ VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
 
+    if (_new == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    } else {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
     if (old == VK_IMAGE_LAYOUT_PREINITIALIZED &&
       _new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
         barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
@@ -799,6 +877,11 @@ VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
       _new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    } else if (old == VK_IMAGE_LAYOUT_UNDEFINED &&
+      _new == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     } else {
         return VK_ERROR_FEATURE_NOT_PRESENT;
     }

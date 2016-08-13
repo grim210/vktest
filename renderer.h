@@ -23,6 +23,7 @@
 #include <SDL2/SDL_syswm.h>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -124,12 +125,16 @@ private:
 
     struct Texture {
         VkImage image;
+        VkImage depth_image;
         VkImageView view;
+        VkImageView depth_view;
         VkDeviceMemory memory;
+        VkDeviceMemory depth_memory;
         VkSampler sampler;
     } m_texture;
 
 
+    VkResult create_depthresources(void);
     VkResult create_descriptorset_layout(void);
     VkResult create_descriptorpool(void);
     VkResult create_descriptorset(void);
@@ -152,8 +157,12 @@ private:
       VkImageTiling tiling, VkImageUsageFlags usage,
       VkMemoryPropertyFlags properties, VkImage* img, VkDeviceMemory* mem);
     VkResult create_imageview(VkImage image, VkFormat format,
-      VkImageView* view);
+      VkImageAspectFlags aflags, VkImageView* view);
+    VkResult find_depth_format(VkFormat* format);
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags flags);
+    VkResult find_supported_format(VkPhysicalDevice gpu,
+      std::vector<VkFormat> candidates, VkImageTiling tiling,
+      VkFormatFeatureFlags features, VkFormat *out);
     VkResult transition_image_layout(VkImage img, VkImageLayout old,
       VkImageLayout _new);
 
