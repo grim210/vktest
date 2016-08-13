@@ -46,7 +46,7 @@ struct Vertex {
         /* must be the position attribute description. */
         descs[0].binding = 0;
         descs[0].location = 0;
-        descs[0].format = VK_FORMAT_R32G32_SFLOAT;
+        descs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         descs[0].offset = offsetof(Vertex, pos);
 
         /* and the color attribute descritpion */
