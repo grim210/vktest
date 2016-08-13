@@ -61,7 +61,7 @@ timer.o: timer.cpp timer.h
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.frag -o ./shaders/test.frag.spv
 
 clean:
-	$(RM) $(OBJS) log.txt
+	$(RM) $(OBJS) log.txt debug.txt
 
 distclean:
-	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt
+	$(RM) $(OBJS) $(TARGET) $(SHADERS) log.txt debug.txt
