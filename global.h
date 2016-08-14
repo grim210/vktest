@@ -69,8 +69,25 @@ struct STBImage {
     unsigned char* data;
 };
 
+class Log {
+public:
+    enum Level {
+        SEVERE,
+        WARNING,
+        ROUTINE
+    };
+
+    static Level m_verbosity;
+    static std::fstream m_file;
+
+    static void Close(void);
+    static bool Init(Log::Level verbosity);
+    static void Write(Log::Level level, std::string message);
+};
+
 void Assert(VkResult test, std::string message, SDL_Window* win = nullptr);
 void Info(std::string message, SDL_Window* win = nullptr);
+
 std::vector<char> ReadFile(std::string path);
 
 /* stb_image wrappers */

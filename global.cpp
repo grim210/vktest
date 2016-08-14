@@ -127,6 +127,63 @@ void Info(std::string message, SDL_Window* win)
 #endif
 }
 
+std::fstream Log::m_file;
+Log::Level Log::m_verbosity;
+
+void Log::Close(void)
+{
+    std::stringstream out;
+    out << "Log closed at " << SDL_GetTicks() << std::endl;
+    if (m_file.is_open()) {
+        m_file << out.str();
+        m_file.flush();
+        m_file.close();
+    } else {
+        std::cout << out.str();
+    }
+}
+
+bool Log::Init(Log::Level verbosity)
+{
+    m_verbosity = verbosity;
+    m_file.open("log.txt", std::fstream::out | std::fstream::binary);
+    if (!m_file.is_open()) {
+        return false;
+    }
+
+    std::stringstream out;
+    out << "Log opened at " << SDL_GetTicks() << std::endl;
+    m_file << out.str();
+    m_file.flush();
+
+    return true;
+}
+
+void Log::Write(Log::Level level, std::string message)
+{
+    std::stringstream out;
+
+    switch (level) {
+    case SEVERE:
+        out << "SEVERE:  ";
+        break;
+    case WARNING:
+        out << "WARNING: ";
+        break;
+    case ROUTINE:
+        out << "ROUTINE: ";
+        break;
+    }
+
+    out << "[" << SDL_GetTicks() << "] " << message << std::endl;
+    if (m_file.is_open()) {
+        m_file << out.str();
+        m_file.flush();
+    } else {
+        std::cout << out.str() << std::endl;
+    }
+}
+
 std::vector<char> ReadFile(std::string path)
 {
     std::fstream f;
