@@ -35,12 +35,15 @@ VkResult Renderer::create_cmdbuffers(void)
         clear_values[0].color = { 0.2f, 0.2f, 0.2f, 1.0f };
         clear_values[1].depthStencil = { 1.0f, 0 };
 
+        VkExtent2D extent;
+        m_swapchain->GetExtent(&extent);
+
         VkRenderPassBeginInfo rpi = {};
         rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpi.renderPass = m_pipeline.renderpass;
         rpi.framebuffer = m_fbuffers[i];
         rpi.renderArea.offset = { 0, 0 };
-        rpi.renderArea.extent = m_swapchain.extent;
+        rpi.renderArea.extent = extent;
         rpi.clearValueCount = clear_values.size();
         rpi.pClearValues = clear_values.data();
 
@@ -135,7 +138,7 @@ VkResult Renderer::create_device(void)
             if (target_queue.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 VkBool32 support = VK_FALSE;
                 VkResult tr = vkGetPhysicalDeviceSurfaceSupportKHR(
-                  target_device, j, m_swapchain.surface, &support);
+                  target_device, j, m_surface, &support);
                 Assert(tr, "vkGetPhysicalDeviceSurfaceSupportKHR",
                   m_window);
 
@@ -245,21 +248,26 @@ VkResult Renderer::create_device(void)
 VkResult Renderer::create_framebuffers(void)
 {
     VkResult result = VK_SUCCESS;
-    m_fbuffers.resize(m_swapchain.views.size());
+
+    uint32_t count;
+    m_swapchain->GetImageCount(&count);
+    m_fbuffers.resize(count);
+
+    VkExtent2D extent;
+    m_swapchain->GetExtent(&extent);
 
     for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
-        std::array<VkImageView, 2> attachments = {
-            m_swapchain.views[i],
-            m_texture.depth_view
-        };
+        VkImageView iv;
+        m_swapchain->GetImageView(i, &iv);
+        std::array<VkImageView, 2> attachments = { iv, m_texture.depth_view };
 
         VkFramebufferCreateInfo fci = {};
         fci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fci.renderPass = m_pipeline.renderpass;
         fci.attachmentCount = attachments.size();
         fci.pAttachments = attachments.data();
-        fci.width = m_swapchain.extent.width;
-        fci.height = m_swapchain.extent.height;
+        fci.width = extent.width;
+        fci.height = extent.height;
         fci.layers = 1;
 
         result = vkCreateFramebuffer(m_device, &fci, nullptr,
@@ -367,17 +375,20 @@ VkResult Renderer::create_pipeline(void)
     piasci.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     piasci.primitiveRestartEnable = VK_FALSE;
 
+    VkExtent2D extent;
+    m_swapchain->GetExtent(&extent);
+
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)m_swapchain.extent.width;
-    viewport.height = (float)m_swapchain.extent.height;
+    viewport.width = (float)extent.width;
+    viewport.height = (float)extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset = {0, 0};
-    scissor.extent = m_swapchain.extent;
+    scissor.extent = extent;
 
     VkPipelineViewportStateCreateInfo vstate = {};
     vstate.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -480,8 +491,11 @@ VkResult Renderer::create_pipeline(void)
 
 VkResult Renderer::create_renderpass(void)
 {
+    VkFormat sc_format;
+    m_swapchain->GetFormat(&sc_format);
+
     VkAttachmentDescription color_attachment = {};
-    color_attachment.format = m_swapchain.format;
+    color_attachment.format = sc_format;
     color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -569,7 +583,7 @@ VkResult Renderer::create_surface(void)
     si.connection = XGetXCBConnection(info.info.x11.display);
     si.window = info.info.x11.window;
     result = vkCreateXcbSurfaceKHR(m_instance, &si, nullptr,
-      &m_swapchain.surface);
+      &m_surface);
 #elif defined(_WIN32)
     VkWin32SurfaceCreateInfoKHR si = {};
     si.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -578,158 +592,11 @@ VkResult Renderer::create_surface(void)
     si.hinstance = GetModuleHandle(NULL);
     si.hwnd = info.info.win.window;
     result = vkCreateWin32SurfaceKHR(m_instance, &si, nullptr,
-      &m_swapchain.surface);
+      &m_surface);
 #else
     Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to detect platform for "
       "VkSurfaceKHR creation.", m_window);
 #endif
-    return result;
-}
-
-VkResult Renderer::create_swapchain(void)
-{
-    /*
-    * This section of code is dedicated to creating the illustrious swapchain.
-    * Creating the swapchain is a very simple process, but filling the structure
-    * used to create the swapchain is a different best.  Take a peek at all the
-    * fields in that structure and you'll see that a lot of information is
-    * required from the application to make create the swapchain.
-    */
-    VkResult result = VK_SUCCESS;
-    uint32_t count = 0;
-
-    /*
-    * Here we figure out what surface formats the physical device supports.
-    */
-    count = 0;
-    std::vector<VkSurfaceFormatKHR> surface_formats;
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.device,
-      m_swapchain.surface, &count, nullptr);
-    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", m_window);
-
-    surface_formats.resize(count);
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_gpu.device,
-      m_swapchain.surface, &count, surface_formats.data());
-    Assert(result, "vkGetPhysicalDeviceSurfaceFormatsKHR", m_window);
-
-    /* There appears to be only one color space, but I'll grab it from
-     * the surface formats just to be safe. */
-    m_swapchain.colorspace = surface_formats[0].colorSpace;
-    if (count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED) {
-        m_swapchain.format = VK_FORMAT_B8G8R8_UNORM;
-    } else {
-        m_swapchain.format = surface_formats[0].format;
-    }
-
-    /*
-    * Next, we grab our surface capabilities.  This will allow us to discern
-    * how many buffers that the machine is capable of presenting.  I'm needing
-    * a double-buffered swapchain, but I'm going through the checks to ensure
-    * the device actually supports that.  Triple-buffering is also pretty
-    * pretty common, but I'd rather not add the complexity.
-    */
-    VkSurfaceCapabilitiesKHR sc = {};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_gpu.device,
-      m_swapchain.surface, &sc);
-
-    /* Translation: if the surface's minimum capability is greater than 2, use
-    * that.  But if the surface cannot support two, use the max supported. */
-    uint32_t image_count = 2;
-    if (image_count < sc.minImageCount) {
-        image_count = sc.minImageCount;
-    } else if (sc.maxImageCount != 0 && image_count > sc.maxImageCount) {
-        image_count = sc.maxImageCount;
-    }
-
-    /*
-    * We get the latest and greatest window resolution from SDL. After that,
-    * we hang compare that the what the device is telling us about the
-    * actual surface.
-    */
-    int width, height;
-    SDL_GetWindowSize(m_window, &width, &height);
-
-    /* Compare that to the surface capabilities structure. */
-    if (sc.currentExtent.width == UINT32_MAX) {
-        m_swapchain.extent.width = static_cast<uint32_t>(width);
-        m_swapchain.extent.height = static_cast<uint32_t>(height);
-    } else {
-        m_swapchain.extent.width = sc.currentExtent.width;
-        m_swapchain.extent.height = sc.currentExtent.height;
-    }
-
-    VkSurfaceTransformFlagBitsKHR pre_transform = sc.currentTransform;
-    if (sc.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-        pre_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    }
-
-    count = 0;
-    std::vector<VkPresentModeKHR> present_modes;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.device,
-      m_swapchain.surface, &count, nullptr);
-
-    present_modes.resize(count);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(m_gpu.device,
-      m_swapchain.surface, &count, present_modes.data());
-
-    VkPresentModeKHR want;
-    if (m_cinfo.flags & Renderer::VSYNC_ON) {
-        want = VK_PRESENT_MODE_MAILBOX_KHR;
-    } else {
-        want = VK_PRESENT_MODE_IMMEDIATE_KHR;
-    }
-    m_swapchain.mode = VK_PRESENT_MODE_FIFO_KHR;
-    for (uint32_t i = 0; i < present_modes.size(); i++) {
-        if (present_modes[i] == want) {
-            m_swapchain.mode = want;
-            break;
-        }
-    }
-
-    VkSwapchainCreateInfoKHR sci = {};
-    sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    sci.pNext = VK_NULL_HANDLE;
-    sci.flags = 0;
-    sci.surface = m_swapchain.surface;
-    sci.minImageCount = image_count;        // should I _require_ two?
-    sci.imageFormat = m_swapchain.format;
-    sci.imageColorSpace = m_swapchain.colorspace;
-    sci.imageExtent = m_swapchain.extent;
-    sci.imageArrayLayers = 1;   // 1, since we're not doing stereoscopic 3D :|
-    sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    sci.queueFamilyIndexCount = 0;              // because .imageSharingMode
-    sci.pQueueFamilyIndices = VK_NULL_HANDLE;   // because .imageSharingMode
-    sci.preTransform = pre_transform;
-    sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    sci.presentMode = m_swapchain.mode;
-    sci.clipped = VK_TRUE;
-    sci.oldSwapchain = VK_NULL_HANDLE;
-
-    result = vkCreateSwapchainKHR(m_device, &sci, NULL,
-      &m_swapchain.chain);
-    Assert(result, "vkCreateSwapchainKHR", m_window);
-
-    count = 0;
-    result = vkGetSwapchainImagesKHR(m_device, m_swapchain.chain,
-      &count, nullptr);
-    Assert(result, "vkGetSwapchainImagesKHR", m_window);
-
-    m_swapchain.images.resize(count);
-    result = vkGetSwapchainImagesKHR(m_device, m_swapchain.chain,
-      &count, m_swapchain.images.data());
-    Assert(result, "vkGetSwapchainImagesKHR", m_window);
-
-    m_swapchain.views.resize(count);
-    for (uint32_t i = 0; i < count; i++) {
-        result = create_imageview(m_swapchain.images[i], m_swapchain.format,
-          VK_IMAGE_ASPECT_COLOR_BIT, &m_swapchain.views[i]);
-        Assert(result, "vkCreateImageView", m_window);
-        if (result) {
-            return result;
-        }
-    }
-
     return result;
 }
 
@@ -740,13 +607,13 @@ VkResult Renderer::create_synchronizers(void)
     VkSemaphoreCreateInfo semci = {};
     semci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     result = vkCreateSemaphore(m_device, &semci, nullptr,
-      &m_swapchain.semready);
+      &m_swapready);
     if (result) {
         return result;
     }
 
     result = vkCreateSemaphore(m_device, &semci, nullptr,
-      &m_swapchain.semfinished);
+      &m_swapfinished);
 
     return result;
 }

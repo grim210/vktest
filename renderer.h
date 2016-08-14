@@ -32,6 +32,7 @@
 #define RENDERER_WINDOW_NAME        ("Vulkan Renderer")
 
 #include "global.h"
+#include "swapchain.h"
 
 class Renderer {
 public:
@@ -70,22 +71,14 @@ private:
 
     VkInstance m_instance;
     VkDevice m_device;
+    VkSurfaceKHR m_surface;
 
     std::vector<VkFramebuffer> m_fbuffers;
     VkQueue m_renderqueue;
 
-    struct Swapchain {
-        VkSemaphore semready;
-        VkSemaphore semfinished;
-        VkExtent2D extent;
-        VkFormat format;
-        VkColorSpaceKHR colorspace;
-        VkPresentModeKHR mode;
-        VkSurfaceKHR surface;
-        VkSwapchainKHR chain;
-        std::vector<VkImage> images;
-        std::vector<VkImageView> views;
-    } m_swapchain;
+    Swapchain* m_swapchain;
+    VkSemaphore m_swapready;
+    VkSemaphore m_swapfinished;
 
     struct PhysicalDevice {
         uint32_t queue_idx;
@@ -175,7 +168,6 @@ private:
     VkResult create_pipeline(void);
     VkResult create_renderpass(void);
     VkResult create_surface(void);
-    VkResult create_swapchain(void);
     VkResult create_synchronizers(void);
     SDL_Window* create_window(void);
 

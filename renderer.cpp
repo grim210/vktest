@@ -2,8 +2,6 @@
 
 Renderer* Renderer::Init(CreateInfo* info)
 {
-    VkResult result = VK_SUCCESS;
-
     /* Check to see if the video subsystem was initialized before proceeding. */
     if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         return nullptr;
@@ -23,70 +21,41 @@ Renderer* Renderer::Init(CreateInfo* info)
 
     ret->m_window = ret->create_window();
 
-    result = ret->create_instance();
-    Assert(result, "Failed to create Vulkan instance.  Do you have a "
-      "compatible system with up-to-date drivers?", ret->m_window);
+    Assert(ret->create_instance(), "create_instance", ret->m_window);
+    Assert(ret->init_debug(), "init_debug", ret->m_window);
+    Assert(ret->create_surface(), "create_surface", ret->m_window);
+    Assert(ret->create_device(), "create_device", ret->m_window);
 
-    result = ret->init_debug();
-    Assert(result, "Failed to initialize the debug extension.", ret->m_window);
+    ret->m_swapchain = Swapchain::Init(ret->m_surface, ret->m_device,
+      ret->m_gpu.device);
+    if (ret->m_swapchain == nullptr) {
+        Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to create swapchain.",
+          ret->m_window);
+    }
 
-    result = ret->create_surface();
-    Assert(result, "Unable to create VkSurfaceKHR", ret->m_window);
+    Assert(ret->m_swapchain->CreateImageViews(ret->m_device, nullptr),
+      "Swapchain::CreateImageViews", ret->m_window);
 
-    result = ret->create_device();
-    Assert(result, "Failed to create a rendering device.  Do you have "
-      "up-to-date drivers?", ret->m_window);
-
-    result = ret->create_swapchain();
-    Assert(result, "Unable to create Swapchain.", ret->m_window);
-
-    result = ret->create_renderpass();
-    Assert(result, "Unable to create Renderpass object.", ret->m_window);
-
-    result = ret->create_descriptorset_layout();
-    Assert(result, "Unable to create descriptorset layout.", ret->m_window);
-
-    result = ret->create_pipeline();
-    Assert(result, "Unable to create graphics pipeline.", ret->m_window);
-
-    result = ret->create_cmdpool();
-    Assert(result, "Unable to create command pool", ret->m_window);
-
-    result = ret->create_depthresources();
-    Assert(result, "Unable to create depth resources.", ret->m_window);
-
-    result = ret->create_framebuffers();
-    Assert(result, "Unable to create framebuffer objects.", ret->m_window);
-
-    result = ret->create_texture();
-    Assert(result, "Unable to create texture!", ret->m_window);
-
-    result = ret->create_textureimageview();
-    Assert(result, "Unable to create texture view.", ret->m_window);
-
-    result = ret->create_sampler();
-    Assert(result, "Unable to create sampler for texture.", ret->m_window);
-
-    result = ret->create_vertexbuffer();
-    Assert(result, "Unable to create vertex buffers.", ret->m_window);
-
-    result = ret->create_indexbuffer();
-    Assert(result, "Unable to create index buffers.", ret->m_window);
-
-    result = ret->create_uniformbuffer();
-    Assert(result, "Unable to create uniform buffers.", ret->m_window);
-
-    result = ret->create_descriptorpool();
-    Assert(result, "Unable to create descriptor pool.", ret->m_window);
-
-    result = ret->create_descriptorset();
-    Assert(result, "Unable to create descriptor set.", ret->m_window);
-
-    result = ret->create_cmdbuffers();
-    Assert(result, "Unable to create command buffers.", ret->m_window);
-
-    result = ret->create_synchronizers();
-    Assert(result, "Unable to create synchronization primitives.",
+    Assert(ret->create_renderpass(), "create_renderpass", ret->m_window);
+    Assert(ret->create_descriptorset_layout(), "create_descriptorset_layout",
+      ret->m_window);
+    Assert(ret->create_pipeline(), "create_pipeline", ret->m_window);
+    Assert(ret->create_cmdpool(), "create_cmdpool", ret->m_window);
+    Assert(ret->create_depthresources(), "create_depthresources",
+      ret->m_window);
+    Assert(ret->create_framebuffers(), "create_framebuffers", ret->m_window);
+    Assert(ret->create_texture(), "create_texture", ret->m_window);
+    Assert(ret->create_textureimageview(), "create_textureimageview",
+      ret->m_window);
+    Assert(ret->create_sampler(), "create_sampler", ret->m_window);
+    Assert(ret->create_vertexbuffer(), "create_vertexbuffer", ret->m_window);
+    Assert(ret->create_indexbuffer(), "create_indexbuffer", ret->m_window);
+    Assert(ret->create_uniformbuffer(), "create_uniformbuffer", ret->m_window);
+    Assert(ret->create_descriptorpool(), "create_descriptorpool",
+      ret->m_window);
+    Assert(ret->create_descriptorset(), "create_descriptorset", ret->m_window);
+    Assert(ret->create_cmdbuffers(), "create_cmdbuffers", ret->m_window);
+    Assert(ret->create_synchronizers(), "create_synchronizers",
       ret->m_window);
 
     return ret;
@@ -114,24 +83,51 @@ void Renderer::RecreateSwapchain(void)
 {
     vkDeviceWaitIdle(m_device);
 
-    this->release_render_objects();
+    /* Release command buffers */
+    vkFreeCommandBuffers(m_device, m_cmdpool, m_cmdbuffers.size(),
+      m_cmdbuffers.data());
+    m_cmdbuffers.clear();
 
-    this->create_swapchain();
-    this->create_renderpass();
-    this->create_descriptorset_layout();
-    this->create_pipeline();
-    this->create_framebuffers();
-    this->create_cmdpool();
-    this->create_texture();
-    this->create_textureimageview();
-    this->create_sampler();
-    this->create_vertexbuffer();
-    this->create_indexbuffer();
-    this->create_uniformbuffer();
-    this->create_descriptorpool();
-    this->create_descriptorset();
-    this->create_cmdbuffers();
+    /* Release framebuffers */
+    for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
+        vkDestroyFramebuffer(m_device, m_fbuffers[i], nullptr);
+    }
+    m_fbuffers.clear();
 
+    /* Release depth resources */
+    vkDestroyImageView(m_device, m_texture.depth_view, nullptr);
+    vkDestroyImage(m_device, m_texture.depth_image, nullptr);
+    vkFreeMemory(m_device, m_texture.depth_memory, nullptr);
+
+    /* Free the rendering pipeline, along with the shader modules */
+    vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipeline.layout, nullptr);
+    vkDestroyShaderModule(m_device, m_pipeline.vshadermodule, nullptr);
+    vkDestroyShaderModule(m_device, m_pipeline.fshadermodule, nullptr);
+
+    /* Destroy the render pass */
+    vkDestroyRenderPass(m_device, m_pipeline.renderpass, nullptr);
+
+    /* Destroy the swapchain (deletes imageviews as well) */
+    Swapchain::Release(m_device, m_swapchain);
+
+    /* now the actual swapchain creation code again */
+    m_swapchain = Swapchain::Init(m_surface, m_device, m_gpu.device);
+    if (m_swapchain == nullptr) {
+        Assert(VK_ERROR_FEATURE_NOT_PRESENT, "Unable to create swapchain.",
+          m_window);
+    }
+
+    /* All this needs to be created again, but not the other stuff in Init() */
+    Assert(m_swapchain->CreateImageViews(m_device, nullptr),
+      "Swapchain::CreateImageViews", m_window);
+    Assert(create_renderpass(), "create_renderpass", m_window);
+    Assert(create_pipeline(), "create_pipeline", m_window);
+    Assert(create_depthresources(), "create_depthresources", m_window);
+    Assert(create_framebuffers(), "create_framebuffers", m_window);
+    Assert(create_cmdbuffers(), "create_cmdbuffers", m_window);
+
+    /* wait to finish before we start rendering again */
     vkDeviceWaitIdle(m_device);
 }
 
@@ -139,12 +135,15 @@ void Renderer::Render(void)
 {
     VkResult result = VK_SUCCESS;
 
-    uint32_t idx = 0;
-    vkAcquireNextImageKHR(m_device, m_swapchain.chain, UINT64_MAX,
-      m_swapchain.semready, VK_NULL_HANDLE, &idx);
+    VkSwapchainKHR sc_handle;
+    m_swapchain->GetHandle(&sc_handle);
 
-    VkSemaphore waitsems[] = { m_swapchain.semready };
-    VkSemaphore sigsems[] = { m_swapchain.semfinished };
+    uint32_t idx = 0;
+    vkAcquireNextImageKHR(m_device, sc_handle, UINT64_MAX,
+      m_swapready, VK_NULL_HANDLE, &idx);
+
+    VkSemaphore waitsems[] = { m_swapready };
+    VkSemaphore sigsems[] = { m_swapfinished };
     VkPipelineStageFlags waitstages[] = {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
@@ -161,7 +160,7 @@ void Renderer::Render(void)
     result = vkQueueSubmit(m_renderqueue, 1, &si, VK_NULL_HANDLE);
     Assert(result, "vkQueueSubmit", m_window);
 
-    VkSwapchainKHR swapchains[] = { m_swapchain.chain };
+    VkSwapchainKHR swapchains[] = { sc_handle };
 
     VkPresentInfoKHR pi = {};
     pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -202,7 +201,10 @@ void Renderer::Update(double elapsed)
       glm::vec3(0.0f, 0.0f, 1.0f)
     );
 
-    float ratio = m_swapchain.extent.width / m_swapchain.extent.height;
+    VkExtent2D extent;
+    m_swapchain->GetExtent(&extent);
+
+    float ratio = extent.width / extent.height;
     ubo.proj = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;       // y-axis is opposite of OpenGL in Vulkan.
 
@@ -383,8 +385,11 @@ VkResult Renderer::create_depthresources(void)
         return result;
     }
 
-    create_image(m_swapchain.extent.width, m_swapchain.extent.height,
-      format, VK_IMAGE_TILING_OPTIMAL,
+    VkExtent2D extent;
+    m_swapchain->GetExtent(&extent);
+
+    create_image(extent.width, extent.height, format,
+      VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
       &m_texture.depth_image, &m_texture.depth_memory);

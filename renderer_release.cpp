@@ -2,8 +2,9 @@
 
 VkResult Renderer::release_device_objects(void)
 {
+    Swapchain::Release(m_device, m_swapchain);
     vkDestroyDevice(m_device, nullptr);
-    vkDestroySurfaceKHR(m_instance, m_swapchain.surface, nullptr);
+    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 
     return VK_SUCCESS;
 }
@@ -52,18 +53,10 @@ VkResult Renderer::release_render_objects(void)
     vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipeline.layout, nullptr);
     vkDestroyRenderPass(m_device, m_pipeline.renderpass, nullptr);
-    vkDestroyShaderModule(m_device,
-      m_pipeline.vshadermodule, nullptr);
-    vkDestroyShaderModule(m_device,
-      m_pipeline.fshadermodule, nullptr);
-    for (uint32_t i = 0; i < m_swapchain.views.size(); i++) {
-        vkDestroyImageView(m_device, m_swapchain.views[i], nullptr);
-    }
-    m_swapchain.views.clear();
-
-    vkDestroySwapchainKHR(m_device, m_swapchain.chain, nullptr);
-    vkFreeCommandBuffers(m_device, m_cmdpool,
-      m_cmdbuffers.size(), m_cmdbuffers.data());
+    vkDestroyShaderModule(m_device, m_pipeline.vshadermodule, nullptr);
+    vkDestroyShaderModule(m_device, m_pipeline.fshadermodule, nullptr);
+    vkFreeCommandBuffers(m_device, m_cmdpool, m_cmdbuffers.size(),
+      m_cmdbuffers.data());
     m_cmdbuffers.clear();
     vkDestroyCommandPool(m_device, m_cmdpool, nullptr);
 
@@ -72,8 +65,8 @@ VkResult Renderer::release_render_objects(void)
 
 VkResult Renderer::release_sync_objects(void)
 {
-    vkDestroySemaphore(m_device, m_swapchain.semready, nullptr);
-    vkDestroySemaphore(m_device, m_swapchain.semfinished, nullptr);
+    vkDestroySemaphore(m_device, m_swapready, nullptr);
+    vkDestroySemaphore(m_device, m_swapfinished, nullptr);
 
     return VK_SUCCESS;
 }
