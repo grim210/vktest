@@ -15,6 +15,7 @@ int main(int argc, char* argv[])
     Renderer* rend = nullptr;
 
     SDL_Init(SDL_INIT_EVERYTHING);
+    Log::Init(Log::ROUTINE);
 
     struct Renderer::CreateInfo info = {};
     info.width = 1024;
@@ -30,6 +31,8 @@ int main(int argc, char* argv[])
     }
 
     Timer t;
+
+    Log::Write(Log::ROUTINE, "Entering main rendering loop.");
 
     bool done = false;
     while (!done) {
@@ -49,7 +52,10 @@ int main(int argc, char* argv[])
         rend->Render();
     }
 
+    Log::Write(Log::ROUTINE, "Leaving main rendering loop.");
+
     Renderer::Release(rend);
+    Log::Close();
     SDL_Quit();
     return 0;
 }
