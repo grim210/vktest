@@ -10,12 +10,14 @@ GLSLFLAGS=-V -s
 LD=g++
 LDFLAGS=-lvulkan -lSDL2 -lX11-xcb $(VKSDK_LIB)
 RM=rm -rf
-OBJS=	debug.o \
+OBJS=	box.o \
+	debug.o \
 	global.o \
 	main.o \
 	renderer.o \
 	renderer_init.o \
 	renderer_release.o \
+	swapchain.o \
 	timer.o
 
 # Shader compilation code
@@ -32,6 +34,9 @@ test:
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+box.o: box.cpp box.h
+	$(CXX) $(CXXFLAGS) box.cpp -o box.o
 
 debug.o: debug.cpp renderer.h
 	$(CXX) $(CXXFLAGS) debug.cpp -o debug.o
@@ -50,6 +55,9 @@ renderer_init.o: renderer_init.cpp renderer.h
 
 renderer_release.o: renderer_release.cpp renderer.h
 	$(CXX) $(CXXFLAGS) renderer_release.cpp -o renderer_release.o
+
+swapchain.o: swapchain.cpp swapchain.h
+	$(CXX) $(CXXFLAGS) swapchain.cpp -o swapchain.o
 
 timer.o: timer.cpp timer.h
 	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
