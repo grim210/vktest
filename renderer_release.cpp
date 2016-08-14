@@ -29,9 +29,9 @@ VkResult Renderer::release_render_objects(void)
     }
     m_fbuffers.clear();
 
-    vkDestroyImageView(m_device, m_texture.depth_view, nullptr);
-    vkDestroyImage(m_device, m_texture.depth_image, nullptr);
-    vkFreeMemory(m_device, m_texture.depth_memory, nullptr);
+    vkDestroyImageView(m_device, m_depthview, nullptr);
+    vkDestroyImage(m_device, m_depthimage, nullptr);
+    vkFreeMemory(m_device, m_depthmem, nullptr);
 
     vkDestroySampler(m_device, m_texture.sampler, nullptr);
     vkDestroyImageView(m_device, m_texture.view, nullptr);

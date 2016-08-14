@@ -259,7 +259,7 @@ VkResult Renderer::create_framebuffers(void)
     for (uint32_t i = 0; i < m_fbuffers.size(); i++) {
         VkImageView iv;
         m_swapchain->GetImageView(i, &iv);
-        std::array<VkImageView, 2> attachments = { iv, m_texture.depth_view };
+        std::array<VkImageView, 2> attachments = { iv, m_depthview };
 
         VkFramebufferCreateInfo fci = {};
         fci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

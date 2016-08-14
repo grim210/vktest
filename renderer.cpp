@@ -95,9 +95,9 @@ void Renderer::RecreateSwapchain(void)
     m_fbuffers.clear();
 
     /* Release depth resources */
-    vkDestroyImageView(m_device, m_texture.depth_view, nullptr);
-    vkDestroyImage(m_device, m_texture.depth_image, nullptr);
-    vkFreeMemory(m_device, m_texture.depth_memory, nullptr);
+    vkDestroyImageView(m_device, m_depthview, nullptr);
+    vkDestroyImage(m_device, m_depthimage, nullptr);
+    vkFreeMemory(m_device, m_depthmem, nullptr);
 
     /* Free the rendering pipeline, along with the shader modules */
     vkDestroyPipeline(m_device, m_pipeline.gpipeline, nullptr);
@@ -392,10 +392,10 @@ VkResult Renderer::create_depthresources(void)
       VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-      &m_texture.depth_image, &m_texture.depth_memory);
-    create_imageview(m_texture.depth_image, format,
-      VK_IMAGE_ASPECT_DEPTH_BIT, &m_texture.depth_view);
-    transition_image_layout(m_texture.depth_image, VK_IMAGE_LAYOUT_UNDEFINED,
+      &m_depthimage, &m_depthmem);
+    create_imageview(m_depthimage, format,
+      VK_IMAGE_ASPECT_DEPTH_BIT, &m_depthview);
+    transition_image_layout(m_depthimage, VK_IMAGE_LAYOUT_UNDEFINED,
       VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     return result;

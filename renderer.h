@@ -118,14 +118,14 @@ private:
 
     struct Texture {
         VkImage image;
-        VkImage depth_image;
         VkImageView view;
-        VkImageView depth_view;
         VkDeviceMemory memory;
-        VkDeviceMemory depth_memory;
         VkSampler sampler;
     } m_texture;
 
+    VkImage m_depthimage;
+    VkImageView m_depthview;
+    VkDeviceMemory m_depthmem;
 
     VkResult create_depthresources(void);
     VkResult create_descriptorset_layout(void);
