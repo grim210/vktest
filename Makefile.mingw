@@ -15,6 +15,7 @@ OBJS=	debug.o \
 	renderer.o \
 	renderer_init.o \
 	renderer_release.o \
+	swapchain.o \
 	timer.o
 
 SHADERS=\
@@ -53,6 +54,9 @@ renderer_init.o: renderer_init.cpp renderer.h
 
 renderer_release.o: renderer_release.cpp renderer.h
 	$(CXX) $(CXXFLAGS) renderer_release.cpp -o renderer_release.o
+
+swapchain.o: swapchain.cpp swapchain.h
+	$(CXX) $(CXXFLAGS) swapchain.cpp -o swapchain.o
 
 timer.o: timer.cpp timer.h
 	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
