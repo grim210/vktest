@@ -135,30 +135,41 @@ Swapchain* Swapchain::Init(VkSurfaceKHR surface, VkDevice device,
     result = vkCreateSwapchainKHR(device, &sci, nullptr,
       &swapchain->m_swapchain);
     if (result) {
+        Log::Write(Log::SEVERE, "Call to vkCreateSwapchainKHR failed.");
         delete(swapchain);
         return nullptr;
     }
 
-    count = 0;
-    result = vkGetSwapchainImagesKHR(device, swapchain->m_swapchain,
+    return swapchain;
+}
+
+VkResult Swapchain::CreateImageViews(VkDevice device, uint32_t* out)
+{
+    VkResult result = VK_SUCCESS;
+    uint32_t count = 0;
+
+    result = vkGetSwapchainImagesKHR(device, m_swapchain,
       &count, nullptr);
     if (result) {
-        vkDestroySwapchainKHR(device, swapchain->m_swapchain, nullptr);
-        delete(swapchain);
-        return nullptr;
+        Log::Write(Log::SEVERE, "Call to vkGetSwapchainImagesKHR failed.");
+        return result;
     }
 
-    swapchain->m_images.resize(count);
-    result = vkGetSwapchainImagesKHR(device, swapchain->m_swapchain, &count,
-      swapchain->m_images.data());
+    if (out != nullptr) {
+        out[0] = count;
+    }
 
-    swapchain->m_views.resize(count);
+    m_images.resize(count);
+    result = vkGetSwapchainImagesKHR(device, m_swapchain, &count,
+      m_images.data());
+
+    m_views.resize(count);
     for (uint32_t i = 0; i < count; i++) {
         VkImageViewCreateInfo view_create_info = {};
         view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        view_create_info.image = swapchain->m_images[i];
+        view_create_info.image = m_images[i];
         view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        view_create_info.format = swapchain->m_format;
+        view_create_info.format = m_format;
         view_create_info.subresourceRange.aspectMask =
           VK_IMAGE_ASPECT_COLOR_BIT;
         view_create_info.subresourceRange.baseMipLevel = 0;
@@ -166,19 +177,50 @@ Swapchain* Swapchain::Init(VkSurfaceKHR surface, VkDevice device,
         view_create_info.subresourceRange.baseArrayLayer = 0;
         view_create_info.subresourceRange.layerCount = 1;
         result = vkCreateImageView(device, &view_create_info, nullptr,
-          &swapchain->m_views[i]);
+          &m_views[i]);
         if (result) {
-            vkDestroySwapchainKHR(device, swapchain->m_swapchain, nullptr);
+            Log::Write(Log::SEVERE, "call to vkCreateImageView failed.");
+            return result;
         }
     }
 
-    return swapchain;
+    return VK_SUCCESS;
 }
 
-void Swapchain::Release(Swapchain* swapchain, VkDevice device)
+void Swapchain::Release(VkDevice device, Swapchain* swapchain)
 {
     swapchain->release(device);
     delete(swapchain);
+}
+
+VkResult Swapchain::GetExtent(VkExtent2D* out)
+{
+    out[0] = m_extent;
+    return VK_SUCCESS;
+}
+
+VkResult Swapchain::GetFormat(VkFormat* out)
+{
+    out[0] = m_format;
+    return VK_SUCCESS;
+}
+
+VkResult Swapchain::GetHandle(VkSwapchainKHR* out)
+{
+    out[0] = m_swapchain;
+    return VK_SUCCESS;
+}
+
+VkResult Swapchain::GetImageCount(uint32_t* out)
+{
+    out[0] = m_views.size();
+    return VK_SUCCESS;
+}
+
+VkResult Swapchain::GetImageView(uint32_t index, VkImageView* out)
+{
+    out[0] = m_views[index];
+    return VK_SUCCESS;
 }
 
 void Swapchain::release(VkDevice device)
@@ -190,4 +232,6 @@ void Swapchain::release(VkDevice device)
     }
 
     vkDestroySwapchainKHR(device, m_swapchain, nullptr);
+    m_views.clear();
+    m_images.clear();
 }
