@@ -203,8 +203,9 @@ void Renderer::Update(double elapsed)
 
     VkExtent2D extent;
     m_swapchain->GetExtent(&extent);
+    float ratio = static_cast<float>(extent.width) /
+      static_cast<float>(extent.height);
 
-    float ratio = extent.width / extent.height;
     ubo.proj = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;       // y-axis is opposite of OpenGL in Vulkan.
 
@@ -653,15 +654,15 @@ VkResult Renderer::create_vertexbuffer(void)
     VkResult result = VK_SUCCESS;
 
     m_box.vertices = {
-       {{-0.5f, -0.5f,  0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-       {{ 0.5f, -0.5f,  0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-       {{ 0.5f,  0.5f,  0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-       {{-0.5f,  0.5f,  0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+       {{-0.5f, -0.5f,  0.25f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f,  0.25f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f,  0.25f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f,  0.25f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
 
-       {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-       {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-       {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-       {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+       {{-0.5f, -0.5f, -0.25f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f, -0.25f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f, -0.25f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f, -0.25f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 
     };
 
