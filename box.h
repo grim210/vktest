@@ -9,7 +9,7 @@
 class Box : public GameObject {
 public:
     virtual ~Box(void) { };
-    static Box* Init(void);
+    static Box* Init(VkDevice device, VkCommandPool pool, VkQueue queue);
     static void Release(Box* box);
 
     void Draw(void);

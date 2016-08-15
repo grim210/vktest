@@ -1,8 +1,26 @@
 #include "box.h"
 
-Box* Box::Init(void)
+Box* Box::Init(VkDevice device, VkCommandPool pool, VkQueue queue)
 {
     Box* box = new Box();
+
+    box->m_vertices = {
+       {{-0.5f, -0.5f,  0.25f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f,  0.25f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f,  0.25f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f,  0.25f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+       {{-0.5f, -0.5f, -0.25f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+       {{ 0.5f, -0.5f, -0.25f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+       {{ 0.5f,  0.5f, -0.25f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+       {{-0.5f,  0.5f, -0.25f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+    };
+
+    box->m_indices = {
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
+    };
+
     return box;
 }
 
@@ -28,3 +46,4 @@ void Box::Update(double elapsed)
 {
 
 }
+
