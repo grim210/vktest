@@ -33,6 +33,7 @@
 
 #include "global.h"
 #include "swapchain.h"
+#include "utility.h"
 
 class Renderer {
 public:
@@ -138,11 +139,6 @@ private:
     VkResult create_textureimageview(void);
     VkResult create_uniformbuffer(void);
 
-    VkResult begin_single_time_commands(VkCommandBuffer* cbuff);
-    VkResult end_single_time_commands(VkCommandBuffer cbuff);
-
-    VkResult copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
-    VkResult copy_image(VkImage src, VkImage dst, uint32_t w, uint32_t h);
     VkResult create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
       VkMemoryPropertyFlags properties, VkBuffer* buffer,
       VkDeviceMemory* buffer_memory);

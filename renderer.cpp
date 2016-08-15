@@ -214,7 +214,12 @@ void Renderer::Update(double elapsed)
     std::memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(m_device, m_box.usbuffermem);
 
-    copy_buffer(m_box.usbuffer, m_box.ubuffer, sizeof(ubo));
+    VkResult result = Utility::CopyBuffer(m_device, m_box.usbuffer,
+      m_box.ubuffer, sizeof(ubo), m_cmdpool, m_renderqueue);
+    if (result) {
+        Log::Write(Log::SEVERE, "Renderer::Update -> call to "
+          "Utility::CopyBuffer failed.");
+    }
 
     if (elapsed - m_fpsinfo.last >= 1.0) {
         std::stringstream out;
@@ -233,114 +238,6 @@ void Renderer::Update(double elapsed)
         /* log to stdout regardless. */
         std::cout << out.str() << std::endl;
     }
-}
-
-VkResult Renderer::begin_single_time_commands(VkCommandBuffer* cbuff)
-{
-    VkCommandBufferAllocateInfo ai = {};
-    ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    ai.commandPool = m_cmdpool;
-    ai.commandBufferCount = 1;
-
-    vkAllocateCommandBuffers(m_device, &ai, cbuff);
-
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(*cbuff, &begin_info);
-
-    return VK_SUCCESS;
-}
-
-VkResult Renderer::end_single_time_commands(VkCommandBuffer cbuff)
-{
-    vkEndCommandBuffer(cbuff);
-
-    VkSubmitInfo si = {};
-    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    si.commandBufferCount = 1;
-    si.pCommandBuffers = &cbuff;
-
-    vkQueueSubmit(m_renderqueue, 1, &si, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_renderqueue);
-
-    vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
-
-    return VK_SUCCESS;
-}
-
-
-VkResult Renderer::copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size)
-{
-    VkCommandBufferAllocateInfo cbai = {};
-    cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cbai.commandPool = m_cmdpool;
-    cbai.commandBufferCount = 1;
-
-    VkCommandBuffer cbuff;
-    vkAllocateCommandBuffers(m_device, &cbai, &cbuff);
-
-    VkCommandBufferBeginInfo cbbi = {};
-    cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cbuff, &cbbi);
-
-    VkBufferCopy copyregion = {};
-    copyregion.srcOffset = 0;
-    copyregion.dstOffset = 0;
-    copyregion.size = size;
-    vkCmdCopyBuffer(cbuff, src, dst, 1, &copyregion);
-
-    vkEndCommandBuffer(cbuff);
-
-    VkSubmitInfo submitinfo = {};
-    submitinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitinfo.commandBufferCount = 1;
-    submitinfo.pCommandBuffers = &cbuff;
-
-    vkQueueSubmit(m_renderqueue, 1, &submitinfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_renderqueue);
-
-    vkFreeCommandBuffers(m_device, m_cmdpool, 1, &cbuff);
-
-    return VK_SUCCESS;
-}
-
-VkResult Renderer::copy_image(VkImage src, VkImage dst, uint32_t w, uint32_t h)
-{
-    VkCommandBuffer cbuff;
-    VkResult result = begin_single_time_commands(&cbuff);
-    if (result) {
-        return result;
-    }
-
-    VkImageSubresourceLayers sub = {};
-    sub.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    sub.baseArrayLayer = 0;
-    sub.mipLevel = 0;
-    sub.layerCount = 1;
-
-    VkImageCopy region = {};
-    region.srcSubresource = sub;
-    region.dstSubresource = sub;
-    region.srcOffset = {0, 0, 0};
-    region.dstOffset = {0, 0, 0};
-    region.extent.width = w;
-    region.extent.height = h;
-    region.extent.depth = 1;
-
-    vkCmdCopyImage(cbuff, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-      dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-    result = end_single_time_commands(cbuff);
-    if (result) {
-        return result;
-    }
-
-    return VK_SUCCESS;
 }
 
 VkResult Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -580,8 +477,14 @@ VkResult Renderer::create_texture(void)
         return result;
     }
 
-    result = copy_image(staging_image, m_texture.image, img.width, img.height);
+    VkExtent2D extent;
+    extent.width = static_cast<uint32_t>(img.width);
+    extent.height = static_cast<uint32_t>(img.height);
+    result = Utility::CopyImage(m_device, staging_image, m_texture.image,
+      extent, m_cmdpool, m_renderqueue);
     if (result) {
+        Log::Write(Log::SEVERE, "Renderer::create_texture -> Call to "
+          "Utility::CopyImage failed.");
         return result;
     }
 
@@ -692,7 +595,8 @@ VkResult Renderer::create_vertexbuffer(void)
         return result;
     }
 
-    result = copy_buffer(stagingbuffer, m_box.vbuffer, buffersize);
+    result = Utility::CopyBuffer(m_device, stagingbuffer, m_box.vbuffer,
+      buffersize, m_cmdpool, m_renderqueue);
     if (result) {
         return result;
     }
@@ -777,8 +681,9 @@ VkResult Renderer::create_indexbuffer(void)
       &m_box.ibuffer, &m_box.ibuffermem);
     Assert(result, "create_buffer: m_ibuffer and m_ibuffermem", m_window);
 
-    result = copy_buffer(stagingbuffer, m_box.ibuffer, bsize);
-    Assert(result, "copy_buffer: stagingbuffer to m_ibuffer");
+    result = Utility::CopyBuffer(m_device, stagingbuffer, m_box.ibuffer, bsize,
+      m_cmdpool, m_renderqueue);
+    Assert(result, "Utility::CopyBuffer -> stagingbuffer to m_ibuffer");
 
     vkFreeMemory(m_device, stagingbuffermemory, nullptr);
     vkDestroyBuffer(m_device, stagingbuffer, nullptr);
@@ -849,8 +754,15 @@ VkResult Renderer::find_supported_format(VkPhysicalDevice gpu,
 VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
   VkImageLayout _new)
 {
+    VkResult result = VK_SUCCESS;
+
     VkCommandBuffer cbuff;
-    begin_single_time_commands(&cbuff);
+    result = Utility::BufferSingleUseBegin(m_device, m_cmdpool, &cbuff);
+    if (result) {
+        Log::Write(Log::SEVERE, "transition_image_layout -> Call to "
+          "Utility::BufferSingleUseBegin failed.");
+        return result;
+    }
 
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -895,7 +807,13 @@ VkResult Renderer::transition_image_layout(VkImage img, VkImageLayout old,
     vkCmdPipelineBarrier(cbuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0,
       0, nullptr, 0, nullptr, 1, &barrier);
-    end_single_time_commands(cbuff);
+    result = Utility::BufferSingleUseEnd(m_device, m_renderqueue, m_cmdpool,
+      cbuff);
+    if (result) {
+        Log::Write(Log::SEVERE, "transition_image_layout -> Call to "
+          "Utility::BufferSingleUseEnd failed.");
+        return result;
+    }
 
     return VK_SUCCESS;
 }

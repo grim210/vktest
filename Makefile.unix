@@ -18,7 +18,8 @@ OBJS=	box.o \
 	renderer_init.o \
 	renderer_release.o \
 	swapchain.o \
-	timer.o
+	timer.o \
+	utility.o
 
 # Shader compilation code
 SHADERS=\
@@ -61,6 +62,9 @@ swapchain.o: swapchain.cpp swapchain.h
 
 timer.o: timer.cpp timer.h
 	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
+
+utility.o: utility.cpp utility.h
+	$(CXX) $(CXXFLAGS) utility.cpp -o utility.o
 
 ./shaders/test.vert.spv: ./shaders/src/test.vert
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv
