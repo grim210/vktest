@@ -1,10 +1,10 @@
 TARGET=vktest.exe
-VKSDK=/c/VulkanSDK/1.0.21.0
-VKINC=$(VKSDK)/Include/
-VKLIB=$(VKSDK)/Bin32/
+VKSDK=/c/VulkanSDK/1.0.30.0/
+VKINC=$(VKSDK)Include/
+VKLIB=$(VKSDK)Bin32/
 CXX=g++
 CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
-GLSL=$(VKSDK)/Bin32/glslangValidator
+GLSL=$(VKSDK)Bin32/glslangValidator
 GLSLFLAGS=-V -s
 LD=g++
 LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VKLIB)
@@ -16,7 +16,8 @@ OBJS=	debug.o \
 	renderer_init.o \
 	renderer_release.o \
 	swapchain.o \
-	timer.o
+	timer.o \
+	utility.o
 
 SHADERS=\
 	./shaders/test.vert.spv \
@@ -60,6 +61,9 @@ swapchain.o: swapchain.cpp swapchain.h
 
 timer.o: timer.cpp timer.h
 	$(CXX) $(CXXFLAGS) timer.cpp -o timer.o
+
+utility.o: utility.cpp utility.h
+	$(CXX) $(CXXFLAGS) utility.cpp -o utility.o
 
 ./shaders/test.vert.spv: ./shaders/src/test.vert
 	$(GLSL) $(GLSLFLAGS) ./shaders/src/test.vert -o ./shaders/test.vert.spv

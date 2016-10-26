@@ -179,6 +179,10 @@ void Renderer::Render(void)
 void Renderer::Update(double elapsed)
 {
 
+    /*
+    * The only event I'm really watching for is the resize event,
+    * which means I need to recreate the swapchain.
+    */
     while (!m_events.empty()) {
         SDL_WindowEvent ev = m_events.front();
         switch (ev.event) {
@@ -221,6 +225,10 @@ void Renderer::Update(double elapsed)
           "Utility::CopyBuffer failed.");
     }
 
+    /*
+    * Print the FPS statistics.  This will be compiled out before anything
+    * would ship.
+    */
     if (elapsed - m_fpsinfo.last >= 1.0) {
         std::stringstream out;
         out << RENDERER_WINDOW_NAME << " | ";
