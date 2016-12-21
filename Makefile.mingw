@@ -1,5 +1,5 @@
 TARGET=vktest.exe
-VKSDK=/c/VulkanSDK/1.0.30.0/
+VKSDK=/c/VulkanSDK/1.0.37.0/
 VKINC=$(VKSDK)Include/
 VKLIB=$(VKSDK)Bin32/
 CXX=g++

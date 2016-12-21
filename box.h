@@ -5,6 +5,7 @@
 
 #include "gameobject.h"
 #include "global.h"
+#include "utility.h"
 
 class Box : public GameObject {
 public:
