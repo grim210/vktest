@@ -2,6 +2,7 @@
 Makefile
 vktest
 vktest.exe
+build
 *o
 *swp
 *tmp

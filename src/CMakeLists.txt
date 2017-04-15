@@ -1,0 +1,12 @@
+add_executable(vktest
+    box.cpp
+    debug.cpp
+    global.cpp
+    main.cpp
+    renderer.cpp
+    renderer_init.cpp
+    renderer_release.cpp
+    swapchain.cpp
+    timer.cpp
+    utility.cpp
+)

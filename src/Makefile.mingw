@@ -1,10 +1,12 @@
 TARGET=vktest.exe
-VKSDK=/c/VulkanSDK/1.0.37.0/
+VKSDK=/c/VulkanSDK/1.0.46.0/
+VKBIN=$(VKSDK)Bin/
 VKINC=$(VKSDK)Include/
-VKLIB=$(VKSDK)Bin32/
+VKLIB=$(VKSDK)Lib/
 CXX=g++
-CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
-GLSL=$(VKSDK)Bin32/glslangValidator
+#CXXFLAGS=-c -std=c++11 -Wall -Werror -I$(VKINC) -DVKTEST_DEBUG
+CXXFLAGS=-c -O2 -std=c++11 -Wall -Werror -I$(VKINC)
+GLSL=$(VKBIN)glslangValidator
 GLSLFLAGS=-V -s
 LD=g++
 LDFLAGS=-lmingw32 -lvulkan-1 -lSDL2main -lSDL2 -mwindows -L$(VKLIB)
@@ -24,16 +26,6 @@ SHADERS=\
 	./shaders/test.frag.spv
 
 all: $(TARGET) $(SHADERS)
-
-zip: $(TARGET) $(SHADERS)
-	rm -rf vktest.zip ./vktest/
-	mkdir ./vktest/; mkdir ./vktest/shaders/; \
-	cp $(TARGET) ./vktest/; cp $(SHADERS) ./vktest/shaders; \
-	cp /c/msys32/mingw32/bin/SDL2.dll ./vktest/; \
-	cp /c/msys32/mingw32/bin/libgcc_s_dw2-1.dll ./vktest/; \
-	cp /c/msys32/mingw32/bin/libstdc++-6.dll ./vktest/; \
-	cp /c/msys32/mingw32/bin/libwinpthread-1.dll ./vktest/; \
-	zip -r vktest ./vktest/; rm -r ./vktest/
 
 $(TARGET): $(OBJS)
 	$(LD) $(OBJS) -o $(TARGET) $(LDFLAGS)
